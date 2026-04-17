@@ -19,6 +19,9 @@ import { mergeTransactions } from './merge';
 
 import { batchUpdateTransactions } from '.';
 
+import { predictCategory } from '#server/ml/service';
+import { savePrediction } from '#server/ml/store';
+
 export type TransactionHandlers = {
   'transactions-batch-update': typeof handleBatchUpdateTransactions;
   'transaction-add': typeof addTransaction;
@@ -47,6 +50,14 @@ async function handleBatchUpdateTransactions({
     learnCategories,
     runTransfers,
   });
+
+  const candidates = [...(added || []), ...(updated || [])];
+
+  for (const trans of candidates) {
+    if (trans?.id) {
+      await maybePredictForTransaction(trans as TransactionEntity);
+    }
+  }
 
   return result;
 }
@@ -149,6 +160,49 @@ async function getLatestTransaction() {
   );
   return data[0] || null;
 }
+
+
+
+async function maybePredictForTransaction(transaction: TransactionEntity) {
+  // safeguarding：没有 payee/description 时不预测
+  const description =
+    transaction.payee_name ||
+    transaction.notes ||
+    transaction.imported_description ||
+    '';
+
+  if (!description.trim()) {
+    return null;
+  }
+
+  try {
+    const prediction = await predictCategory({
+      transactionId: transaction.id,
+      transactionDescription: description,
+      country: 'unknown',
+      currency: transaction.currency || 'unknown',
+    });
+
+    if (!prediction) {
+      return null;
+    }
+
+    // safeguarding：低置信度不展示为强推荐
+    if (prediction.confidence < 0.35) {
+      return null;
+    }
+
+    await savePrediction(transaction.id, prediction);
+    return prediction;
+  } catch (err) {
+    console.error('ML prediction failed', err);
+    return null;
+  }
+}
+
+
+
+
 
 export const app = createApp<TransactionHandlers>();
 
