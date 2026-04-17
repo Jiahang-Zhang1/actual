@@ -41,6 +41,8 @@ import { app as transactionsApp } from './transactions/app';
 import * as rules from './transactions/transaction-rules';
 import { redo, undo } from './undo';
 
+import { app as mlApp } from '#server/ml/app';
+
 // handlers
 
 // need to work around the type system here because the object
@@ -139,6 +141,7 @@ app.combine(
   rulesApp,
   adminApp,
   transactionsApp,
+  mlApp,
   accountsApp,
   payeesApp,
   spreadsheetApp,
