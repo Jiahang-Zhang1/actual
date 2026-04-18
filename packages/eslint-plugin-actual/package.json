@@ -1,0 +1,15 @@
+{
+  "name": "eslint-plugin-actual",
+  "private": true,
+  "type": "commonjs",
+  "main": "./lib/index.js",
+  "exports": "./lib/index.js",
+  "scripts": {
+    "test": "vitest --run"
+  },
+  "devDependencies": {
+    "@oxlint/plugins": "^1.60.0",
+    "eslint-vitest-rule-tester": "^3.1.0",
+    "vitest": "^4.1.2"
+  }
+}
