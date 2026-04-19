@@ -1,5 +1,5 @@
 # Dockerfile for data pipeline
-# Assisted by Claude Sonnet 4.6
+
 
 FROM python:3.10-slim
 
