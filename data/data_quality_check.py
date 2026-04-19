@@ -1,6 +1,5 @@
 # data_quality_check.py
 # Data quality checks at three points
-# Assisted by Claude Sonnet 4.6
 
 import pandas as pd
 from datetime import datetime
