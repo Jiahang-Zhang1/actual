@@ -1,6 +1,5 @@
 # feedback_collector.py
 # Collects user feedback and stores for retraining
-# Assisted by Claude Sonnet 4.6
 
 import psycopg2
 import pandas as pd
