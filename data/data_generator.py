@@ -15,7 +15,7 @@ descriptions = [
 countries = ['US', 'UK', 'AUSTRALIA']
 currencies = ['USD', 'GBP', 'AUD']
 
-SERVING_URL = "http://localhost:8080/predict"
+SERVING_URL = "http://129.114.25.80/predict"
 
 for i in range(10):
     payload = {
