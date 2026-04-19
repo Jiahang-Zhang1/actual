@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "PAYROLL DIRECT DEPOSIT ACME INC",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "COMCAST CABLE PAYMENT",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "DONATION TO RED CROSS",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "AMAZON MARKETPLACE ORDER 114-1234567",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "MONTHLY ACCOUNT SERVICE FEE",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "UBER TRIP HELP.UBER.COM",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "CITY ELECTRIC BILL PAYMENT",
+      "country": "US",
+      "currency": "USD"
+    }
+  ]
+}

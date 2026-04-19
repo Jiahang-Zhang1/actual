@@ -1,0 +1,11 @@
+{
+  "items": [
+    {
+      "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+      "transaction_description_clean": "starbucks store 1458 new york ny",
+      "country": "US",
+      "currency": "USD",
+      "description_length": 6
+    }
+  ]
+}

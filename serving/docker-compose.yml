@@ -1,0 +1,84 @@
+x-common: &common
+  build:
+    context: .
+    dockerfile: docker/Dockerfile
+  working_dir: /workspace
+  env_file:
+    - .env
+  environment:
+    PYTHONUNBUFFERED: "1"
+    PYTHONPATH: /workspace
+  user: "${UID:-1000}:${GID:-1000}"
+  volumes:
+    - .:/workspace
+
+services:
+  serve:
+    <<: *common
+    container_name: actualbudget-serving-app
+    command: ["python", "-m", "app.launch"]
+    ports:
+      - "${HOST_PORT:-8000}:8000"
+    environment:
+      SERVICE_HOST: 0.0.0.0
+      SERVICE_PORT: ${SERVICE_PORT:-8000}
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      BACKEND_KIND: ${BACKEND_KIND:-onnx_dynamic_quant}
+      MODEL_PATH: ${MODEL_PATH:-/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx}
+      SOURCE_MODEL_PATH: ${SOURCE_MODEL_PATH:-/workspace/models/source/v2_tfidf_linearsvc_model.joblib}
+      MODEL_VERSION: ${MODEL_VERSION:-v2_tfidf_linearsvc}
+      CODE_VERSION: ${CODE_VERSION:-dev}
+      TOP_K: ${TOP_K:-3}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      RUNTIME_DIR: /workspace/runtime
+      ROLLOUT_CONTEXT: ${ROLLOUT_CONTEXT:-production}
+      MONITOR_WINDOW_MINUTES: ${MONITOR_WINDOW_MINUTES:-60}
+      PROMOTION_MIN_REQUESTS: ${PROMOTION_MIN_REQUESTS:-100}
+      PROMOTION_MIN_FEEDBACK: ${PROMOTION_MIN_FEEDBACK:-20}
+      PROMOTION_MAX_P95_MS: ${PROMOTION_MAX_P95_MS:-100}
+      PROMOTION_MAX_ERROR_RATE: ${PROMOTION_MAX_ERROR_RATE:-0.01}
+      PROMOTION_MIN_TOP1_ACCEPTANCE: ${PROMOTION_MIN_TOP1_ACCEPTANCE:-0.60}
+      PROMOTION_MIN_TOP3_ACCEPTANCE: ${PROMOTION_MIN_TOP3_ACCEPTANCE:-0.80}
+      ROLLBACK_MIN_REQUESTS: ${ROLLBACK_MIN_REQUESTS:-20}
+      ROLLBACK_MIN_FEEDBACK: ${ROLLBACK_MIN_FEEDBACK:-10}
+      ROLLBACK_MAX_P95_MS: ${ROLLBACK_MAX_P95_MS:-250}
+      ROLLBACK_MAX_ERROR_RATE: ${ROLLBACK_MAX_ERROR_RATE:-0.02}
+      ROLLBACK_MIN_TOP1_ACCEPTANCE: ${ROLLBACK_MIN_TOP1_ACCEPTANCE:-0.45}
+      ROLLBACK_MIN_TOP3_ACCEPTANCE: ${ROLLBACK_MIN_TOP3_ACCEPTANCE:-0.70}
+    cpus: "${SERVICE_CPUS:-2.0}"
+    mem_limit: "${SERVICE_MEM_LIMIT:-3g}"
+
+  tooling:
+    <<: *common
+    profiles: ["tools"]
+    entrypoint: ["python"]
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: actualbudget-serving-prometheus
+    depends_on:
+      - serve
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: actualbudget-serving-grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+
+volumes:
+  prometheus_data:
+  grafana_data:

@@ -1,0 +1,27 @@
+{
+  "title": "Feedback Monitoring",
+  "uid": "smartcat-feedback",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Feedback events per second",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(feedback_total[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Top1 / Top3 acceptance rate",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(feedback_match_total[5m])) / sum(rate(feedback_total[5m]))", "legendFormat": "top1", "refId": "A"},
+        {"expr": "sum(rate(feedback_top3_match_total[5m])) / sum(rate(feedback_total[5m]))", "legendFormat": "top3", "refId": "B"}
+      ]
+    }
+  ]
+}

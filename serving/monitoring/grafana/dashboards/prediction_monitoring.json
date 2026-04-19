@@ -1,0 +1,26 @@
+{
+  "title": "Prediction Monitoring",
+  "uid": "smartcat-prediction",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Average confidence",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(prediction_confidence_sum[1m])) / sum(rate(prediction_confidence_count[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Predicted classes (selected range)",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 10},
+      "targets": [
+        {"expr": "increase(predicted_class_total[$__range])", "legendFormat": "{{category_id}}", "refId": "A"}
+      ]
+    }
+  ]
+}

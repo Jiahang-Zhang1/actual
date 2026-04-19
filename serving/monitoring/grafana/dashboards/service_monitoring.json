@@ -1,0 +1,35 @@
+{
+  "title": "Service Monitoring",
+  "uid": "smartcat-service",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Requests per second",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(http_requests_total{handler=~\"/predict|/predict_batch\"}[1m]))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request p95 latency (ms)",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "1000*histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{handler=~\"/predict|/predict_batch\"}[1m])))", "refId": "A"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "4xx/5xx per second",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(http_requests_total{handler=~\"/predict|/predict_batch\",status=~\"4..\"}[1m]))", "legendFormat": "4xx", "refId": "A"},
+        {"expr": "sum(rate(http_requests_total{handler=~\"/predict|/predict_batch\",status=~\"5..\"}[1m]))", "legendFormat": "5xx", "refId": "B"}
+      ]
+    }
+  ]
+}

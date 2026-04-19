@@ -1,0 +1,24 @@
+{
+  "items": [
+    {
+      "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "PAYROLL DIRECT DEPOSIT ACME INC",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "COMCAST CABLE PAYMENT",
+      "country": "US",
+      "currency": "USD"
+    },
+    {
+      "transaction_description": "DONATION TO RED CROSS",
+      "country": "US",
+      "currency": "USD"
+    }
+  ]
+}

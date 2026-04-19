@@ -1,0 +1,19 @@
+{
+  "predicted_category_id": "Food & Dining",
+  "confidence": 0.401855,
+  "top_categories": [
+    {
+      "category_id": "Food & Dining",
+      "score": 0.401855
+    },
+    {
+      "category_id": "Shopping & Retail",
+      "score": 0.224238
+    },
+    {
+      "category_id": "Entertainment & Recreation",
+      "score": 0.074076
+    }
+  ],
+  "model_version": "v2_tfidf_linearsvc"
+}
