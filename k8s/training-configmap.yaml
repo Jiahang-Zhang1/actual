@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: training-config
+  namespace: actual-training
+data:
+  DB_PATH: /data/budget.sqlite
+  OUTPUT_PATH: /outputs/training_set.parquet

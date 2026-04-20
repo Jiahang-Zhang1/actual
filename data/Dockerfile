@@ -1,21 +1,15 @@
-# Dockerfile for data pipeline
-
-
 FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install dependencies
 RUN pip install --no-cache-dir \
     pandas \
     pyarrow \
     scikit-learn \
-    psycopg2-binary \
     requests \
     datasets \
     huggingface_hub
 
-# Copy all scripts
 COPY ingest.py /app/
 COPY data_generator.py /app/
 COPY online_features.py /app/
