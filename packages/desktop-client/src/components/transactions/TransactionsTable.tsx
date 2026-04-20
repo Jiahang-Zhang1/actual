@@ -161,9 +161,10 @@ type TransactionHeaderProps = {
   field: string;
 };
 
-// Keep the short notes column from crowding the AI columns in demo-sized account tables.
+// Demo layout tuning: keep ML columns useful while giving merchant names room.
 const NOTES_COLUMN_WIDTH = 120;
-const AI_SUGGESTION_COLUMN_WIDTH = 260;
+const PAYEE_COLUMN_FLEX = 1.45;
+const AI_SUGGESTION_COLUMN_WIDTH = 190;
 const AI_TOP_THREE_COLUMN_WIDTH = 440;
 
 const TransactionHeader = memo(
@@ -262,6 +263,7 @@ const TransactionHeader = memo(
           alignItems="flex"
           marginLeft={-5}
           id="payee"
+          cellStyle={{ flex: PAYEE_COLUMN_FLEX, flexBasis: 0 }}
           icon={field === 'payee' ? ascDesc : 'clickable'}
           onClick={() =>
             onSort('payee', selectAscDesc(field, ascDesc, 'payee', 'asc'))
@@ -459,6 +461,7 @@ type HeaderCellProps = {
   id: string;
   icon?: 'asc' | 'desc' | 'clickable';
   onClick?: () => void;
+  cellStyle?: CSSProperties;
 } & Pick<CSSProperties, 'width' | 'alignItems' | 'marginLeft' | 'marginRight'>;
 
 function HeaderCell({
@@ -470,8 +473,9 @@ function HeaderCell({
   marginRight,
   icon,
   onClick,
+  cellStyle,
 }: HeaderCellProps) {
-  const style = {
+  const textStyle = {
     whiteSpace: 'nowrap' as CSSProperties['whiteSpace'],
     overflow: 'hidden',
     textOverflow: 'ellipsis',
@@ -490,10 +494,11 @@ function HeaderCell({
       style={{
         borderTopWidth: 0,
         borderBottomWidth: 0,
+        ...cellStyle,
       }}
       unexposedContent={({ value: cellValue }) =>
         onClick ? (
-          <Button variant="bare" onPress={onClick} style={style}>
+          <Button variant="bare" onPress={onClick} style={textStyle}>
             <UnexposedCellContent value={cellValue} />
             {icon === 'asc' && (
               <SvgArrowDown width={10} height={10} style={{ marginLeft: 5 }} />
@@ -503,7 +508,7 @@ function HeaderCell({
             )}
           </Button>
         ) : (
-          <Text style={style}>{cellValue}</Text>
+          <Text style={textStyle}>{cellValue}</Text>
         )
       }
     />
@@ -843,7 +848,7 @@ function PayeeCell({
       name="payee"
       width="flex"
       focused={focused}
-      style={{ padding: 0 }}
+      style={{ padding: 0, flex: PAYEE_COLUMN_FLEX, flexBasis: 0 }}
       plain
     >
       <CellButton
@@ -944,6 +949,7 @@ function PayeeCell({
       width="flex"
       name="payee"
       textAlign="flex"
+      style={{ flex: PAYEE_COLUMN_FLEX, flexBasis: 0 }}
       value={payee?.id}
       valueStyle={valueStyle}
       exposed={focused}
