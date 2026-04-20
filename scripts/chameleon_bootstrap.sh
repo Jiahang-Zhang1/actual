@@ -369,11 +369,13 @@ start_https_proxy() {
   cat > artifacts/chameleon/caddy/Caddyfile <<CADDY
 actual.${suffix} {
   encode zstd gzip
-  header {
-    Cross-Origin-Opener-Policy "same-origin"
-    Cross-Origin-Embedder-Policy "require-corp"
-  }
   reverse_proxy 127.0.0.1:3001 {
+    # Keep exactly one COOP/COEP value. Actual's dev server may already send
+    # these headers, and duplicate values make Chrome reject cross-origin
+    # isolation, which hides SharedArrayBuffer.
+    header_down Cross-Origin-Opener-Policy "same-origin"
+    header_down Cross-Origin-Embedder-Policy "require-corp"
+
     # Actual uses Vite in this Chameleon demo. Vite rejects unknown Host
     # headers, so the upstream request keeps the public IP host that was
     # already accepted while the browser uses a trusted HTTPS origin.
