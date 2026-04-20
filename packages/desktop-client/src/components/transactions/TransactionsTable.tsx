@@ -163,9 +163,12 @@ type TransactionHeaderProps = {
 
 // Demo layout tuning: keep ML columns useful while giving merchant names room.
 const NOTES_COLUMN_WIDTH = 120;
-const PAYEE_COLUMN_FLEX = 1.45;
-const AI_SUGGESTION_COLUMN_WIDTH = 190;
-const AI_TOP_THREE_COLUMN_WIDTH = 440;
+const PAYEE_COLUMN_FLEX = 1.8;
+const AI_SUGGESTION_COLUMN_WIDTH = 170;
+const AI_TOP_THREE_COLUMN_WIDTH = 370;
+const AMOUNT_COLUMN_WIDTH = 82;
+const BALANCE_COLUMN_WIDTH = 90;
+const CLEARED_COLUMN_WIDTH = 34;
 
 const TransactionHeader = memo(
   ({
@@ -316,7 +319,7 @@ const TransactionHeader = memo(
         )}
         <HeaderCell
           value={t('Payment')}
-          width={100}
+          width={AMOUNT_COLUMN_WIDTH}
           alignItems="flex-end"
           marginRight={-5}
           id="payment"
@@ -327,7 +330,7 @@ const TransactionHeader = memo(
         />
         <HeaderCell
           value={t('Deposit')}
-          width={100}
+          width={AMOUNT_COLUMN_WIDTH}
           alignItems="flex-end"
           marginRight={-5}
           id="deposit"
@@ -339,7 +342,7 @@ const TransactionHeader = memo(
         {showBalance && (
           <HeaderCell
             value={t('Balance')}
-            width={103}
+            width={BALANCE_COLUMN_WIDTH}
             alignItems="flex-end"
             marginRight={-5}
             id="balance"
@@ -348,7 +351,7 @@ const TransactionHeader = memo(
         {showCleared && (
           <HeaderCell
             value="✓"
-            width={38}
+            width={CLEARED_COLUMN_WIDTH}
             alignItems="center"
             id="cleared"
             icon={field === 'cleared' ? ascDesc : 'clickable'}
@@ -414,7 +417,7 @@ function StatusCell({
   return (
     <Cell
       name="cleared"
-      width={38}
+      width={CLEARED_COLUMN_WIDTH}
       alignItems="center"
       focused={focused}
       style={{ padding: 1 }}
@@ -2199,7 +2202,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Debit field for all transactions */
           type="input"
-          width={100}
+          width={AMOUNT_COLUMN_WIDTH}
           name="debit"
           exposed={focusedField === 'debit'}
           focused={focusedField === 'debit'}
@@ -2230,7 +2233,7 @@ const Transaction = memo(function Transaction({
         <InputCell
           /* Credit field for all transactions */
           type="input"
-          width={100}
+          width={AMOUNT_COLUMN_WIDTH}
           name="credit"
           exposed={focusedField === 'credit'}
           focused={focusedField === 'credit'}
@@ -2274,7 +2277,7 @@ const Transaction = memo(function Transaction({
                   : theme.numberPositive,
             }}
             style={{ ...styles.tnum, ...amountStyle }}
-            width={103}
+            width={BALANCE_COLUMN_WIDTH}
             textAlign="right"
             privacyFilter
           />
