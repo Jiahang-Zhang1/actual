@@ -92,3 +92,17 @@ storybook-static
 .actualrc.yaml
 .actualrc.yml
 actual.config.js
+
+# Smart transaction categorization local artifacts
+artifacts/test-data/
+artifacts/test-rollout/
+serving/.env
+serving/runtime/
+serving/.pytest_cache/
+serving/**/__pycache__/
+serving/**/*.pyc
+serving/artifacts/gradescope/
+serving/results/raw/*
+!serving/results/raw/.gitkeep
+serving/results/summary/_temp_*.json
+serving/results/summary/all_results.*
