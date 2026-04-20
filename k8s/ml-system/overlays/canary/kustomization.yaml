@@ -37,6 +37,20 @@ patches:
       - op: replace
         path: /spec/maxReplicas
         value: 3
+  - target:
+      kind: CronJob
+      name: ml-retrain-evaluate-promote
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/3/value
+        value: canary
+  - target:
+      kind: CronJob
+      name: serving-rollout-decision
+    patch: |-
+      - op: replace
+        path: /spec/jobTemplate/spec/template/spec/containers/0/env/1/value
+        value: canary
 
 configMapGenerator:
   - name: actual-ml-config

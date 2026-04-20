@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - storage.yaml
+  - mlflow-platform.yaml
   - actual-sync.yaml
   - serving.yaml
   - monitoring.yaml

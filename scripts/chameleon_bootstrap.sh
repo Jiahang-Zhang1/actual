@@ -266,9 +266,10 @@ wait_for_url() {
 }
 
 start_serving_stack() {
-  log "Starting serving, Prometheus, and Grafana"
+  log "Starting serving, MLflow, Prometheus, and Grafana"
   (cd serving && python3 run.py monitor-up)
   wait_for_url "${SERVING_URL%/}/readyz" "serving" 90
+  wait_for_url "http://127.0.0.1:5000" "MLflow" 90 || true
   wait_for_url "http://127.0.0.1:9090/-/ready" "Prometheus" 60 || true
   wait_for_url "http://127.0.0.1:3000/api/health" "Grafana" 60 || true
 }
@@ -356,6 +357,8 @@ Local VM checks:
   Actual server-dev:     http://127.0.0.1:5006
   Serving API docs:      http://127.0.0.1:8000/docs
   Serving summary:       http://127.0.0.1:8000/monitor/summary
+  MLflow:                http://127.0.0.1:5000
+  MinIO console:         http://127.0.0.1:9001
   Prometheus:            http://127.0.0.1:9090
   Grafana overview:      http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview
 
@@ -363,6 +366,8 @@ External browser URLs, if the Chameleon security group allows these ports:
   Actual frontend:       http://${host}:3001
   Actual server-dev:     http://${host}:5006
   Serving API docs:      http://${host}:8000/docs
+  MLflow:                http://${host}:5000
+  MinIO console:         http://${host}:9001
   Prometheus:            http://${host}:9090
   Grafana:               http://${host}:3000
 
@@ -381,7 +386,7 @@ Grafana login:
   admin / admin
 
 If external URLs do not open, update the Chameleon security group to allow:
-  TCP 3001, 5006, 8000, 9090, 3000
+  TCP 3001, 5006, 8000, 5000, 9001, 9090, 3000
 SUMMARY
 }
 

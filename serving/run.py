@@ -138,13 +138,36 @@ def logs() -> None:
 def monitor_up() -> None:
     ensure_env_file()
     require_docker()
-    run(compose_cmd("up", "-d", "serve", "prometheus", "grafana"))
+    run(
+        compose_cmd(
+            "up",
+            "-d",
+            "serve",
+            "prometheus",
+            "grafana",
+            "mlflow-postgres",
+            "mlflow-minio",
+            "mlflow-minio-init",
+            "mlflow",
+        )
+    )
 
 
 def monitor_down() -> None:
     ensure_env_file()
     require_docker()
-    run(compose_cmd("stop", "prometheus", "grafana"), check=False)
+    run(
+        compose_cmd(
+            "stop",
+            "prometheus",
+            "grafana",
+            "mlflow",
+            "mlflow-minio-init",
+            "mlflow-minio",
+            "mlflow-postgres",
+        ),
+        check=False,
+    )
 
 
 def http_get_json(url: str, timeout: float = 3.0) -> dict:

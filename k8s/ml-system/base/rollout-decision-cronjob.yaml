@@ -23,6 +23,23 @@ spec:
               image: actualbudget/smartcat-mlops:latest
               imagePullPolicy: IfNotPresent
               workingDir: /workspace
+              env:
+                - name: MLFLOW_TRACKING_URI
+                  value: http://mlflow:5000
+                - name: MLFLOW_PROMOTION_ALIAS
+                  value: production
+                - name: MLFLOW_S3_ENDPOINT_URL
+                  value: http://mlflow-minio:9000
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: mlflow-platform-secrets
+                      key: minio-root-user
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mlflow-platform-secrets
+                      key: minio-root-password
               command: ["python"]
               args:
                 - serving/tools/execute_rollout_action.py

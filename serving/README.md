@@ -153,6 +153,8 @@ k8s/ml-system/overlays/production/
 | Prometheus | `http://127.0.0.1:9090` | Metrics query UI |
 | Grafana overview | `http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview` | Main monitoring dashboard |
 | Grafana home | `http://127.0.0.1:3000` | Dashboard index, login `admin / admin` |
+| MLflow | `http://127.0.0.1:5000` | Training run tracking and model registry |
+| MinIO console | `http://127.0.0.1:9001` | MLflow artifact storage UI |
 
 Port difference:
 
@@ -160,6 +162,8 @@ Port difference:
 - `5006` is the Actual server-dev/sync server. It is not the main UI for bank transaction import.
 - `8000` is the smart categorization serving API.
 - `9090` and `3000` are monitoring services.
+- `5000` is MLflow for experiment tracking/model registry.
+- `9001` is MinIO for MLflow artifact inspection.
 
 ## 4. Final Defense Test Order
 
@@ -308,6 +312,43 @@ python3 serving/tools/execute_rollout_action.py \
   --reload-url http://127.0.0.1:8000/admin/reload-model
 ```
 
+### Step 7: Run A Compressed One-Week Automation Test
+
+The final production submission runs under emulated user traffic for about one
+week. For local testing, use a compressed week where one simulated hour takes
+one second:
+
+```bash
+python3 scripts/run_week_simulation.py \
+  --serving-url http://127.0.0.1:8000 \
+  --simulated-hours 168 \
+  --seconds-per-hour 1 \
+  --pipeline-every-hours 24 \
+  --rollout-every-hours 6
+```
+
+For a real-time week, use:
+
+```bash
+python3 scripts/run_week_simulation.py --seconds-per-hour 3600
+```
+
+What this does:
+
+- Sends realistic `/predict_batch` traffic.
+- Posts simulated user feedback to `/feedback`.
+- Triggers `scripts/run_mlops_pipeline.py` on schedule.
+- Registers challenger models in MLflow when `MLFLOW_TRACKING_URI` is set.
+- Runs the serving-owned rollout trigger so a good model can replace the deployed model automatically.
+- Calls `/admin/reload-model` after successful promotion or rollback.
+
+Evidence is written to:
+
+```text
+artifacts/week-simulation/events.jsonl
+artifacts/archive/last_decision.json
+```
+
 ## 5. Service Inventory
 
 | Area | Service or job | Local port or schedule | Responsibility | Main files |
@@ -319,6 +360,7 @@ python3 serving/tools/execute_rollout_action.py \
 | Model runtime | Runtime backends | loaded by serving | Loads sklearn, ONNX, or dynamic-quantized ONNX artifacts | `serving/app/backends/`, `serving/models/source/`, `serving/models/optimized/`, `serving/models/manifest.json` |
 | Metrics | Prometheus | `9090` | Scrapes metrics and evaluates alert/recording rules | `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, `serving/docker-compose.yml` |
 | Dashboards | Grafana | `3000` | Visualizes service, prediction, feedback, data quality, and rollout state | `serving/monitoring/grafana/provisioning/`, `serving/monitoring/grafana/dashboards/`, `serving/docker-compose.yml` |
+| Model registry | MLflow + Postgres + MinIO | `5000`, `9000`, `9001` | Tracks training runs, stores artifacts, and records promoted model aliases | `serving/docker-compose.yml`, `k8s/ml-system/base/mlflow-platform.yaml`, `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py` |
 | Data quality | Data quality monitor | local command / K8s every 30 minutes | Checks ingestion, training set, and online drift quality | `data/data_quality_check.py`, `data/ingest.py`, `data/batch_pipeline.py`, `k8s/ml-system/base/data-quality-cronjob.yaml` |
 | Training automation | Retrain/evaluate/promote pipeline | local command / CI / K8s every 6-12 hours | Builds datasets, trains challengers, evaluates gates, promotes winners | `scripts/run_mlops_pipeline.py`, `training/build_training_set.py`, `training/train_model.py`, `scripts/promote_model.py`, `.github/workflows/mlops-automation.yml`, `k8s/ml-system/base/training-pipeline-cronjob.yaml` |
 | Rollout control | Serving rollout decision job | local command / K8s every 15 minutes | Runs promotion or rollback actions from monitoring decisions | `serving/tools/execute_rollout_action.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/rollout-decision-cronjob.yaml` |
@@ -601,9 +643,11 @@ Purpose:
 - Run data quality gates.
 - Train a challenger model.
 - Evaluate task-specific metrics.
+- Register the challenger in MLflow when a tracking URI is configured.
 - Promote the challenger if it passes thresholds and is at least as good as the current deployed model.
+- Update the MLflow production/canary/staging alias after promotion.
 - Archive rollback metadata.
-- Roll back the active model if production metrics degrade.
+- Roll back the active model and restore the MLflow alias if production metrics degrade.
 
 Main files:
 
@@ -614,8 +658,10 @@ scripts/run_mlops_pipeline.py
 scripts/promote_model.py
 scripts/rollback_model.py
 scripts/simulate_promotion_rollback.py
+scripts/run_week_simulation.py
 .github/workflows/mlops-automation.yml
 docker/mlops.Dockerfile
+k8s/ml-system/base/mlflow-platform.yaml
 k8s/ml-system/base/training-pipeline-cronjob.yaml
 k8s/ml-system/base/rollout-decision-cronjob.yaml
 serving/tools/execute_rollout_action.py
@@ -1249,7 +1295,7 @@ are already equivalent and which parts should be upgraded if time allows.
 | --- | --- | --- | --- |
 | MLOps Pipeline on Chameleon | `tf/`, `ansible/`, `k8s/platform`, `k8s/staging`, `k8s/canary`, `k8s/production`, and `workflows/` for lifecycle automation | We have `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh`, `k8s/ml-system/base`, and `k8s/ml-system/overlays/staging|canary|production` | Functionally close, but not full course-style IaC/GitOps |
 | MLOps lifecycle workflows | Training builds a candidate, deploys to staging, tests staging, promotes to canary, then promotes or rolls back production | `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `serving/tools/execute_rollout_action.py`, K8s CronJobs | Implemented as Python scripts, GitHub Actions, and CronJobs instead of Argo Workflows |
-| MLflow tracking and registry | MLflow runs as shared platform service with Postgres metadata and MinIO/S3 artifacts | `training/train_model.py` logs to MLflow when `MLFLOW_TRACKING_URI` is configured | Partially implemented; shared MLflow/Postgres/MinIO service should be added for final Chameleon evidence |
+| MLflow tracking and registry | MLflow runs as shared platform service with Postgres metadata and MinIO/S3 artifacts | `serving/docker-compose.yml` and `k8s/ml-system/base/mlflow-platform.yaml` run MLflow/Postgres/MinIO; `training/train_model.py` registers challengers; promotion/rollback scripts update aliases | Implemented; final Chameleon run evidence still needed |
 | Serving system lab | FastAPI inference service exposes `/predict`, batch-style serving, health checks, model artifact loading, and performance testing | `serving/app/main.py`, `serving/app/backends/`, `serving/tools/benchmark_http.py`, `serving/tools/benchmark_arrivals.py` | Implemented |
 | Online evaluation lab | FastAPI exposes `/metrics`; Prometheus scrapes it; Grafana shows operational and prediction behavior | `serving/app/main.py`, `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, Grafana dashboards | Implemented locally; K8s should mount the same dashboard/rule configs |
 | Feedback-loop lab | Save production predictions, collect explicit user feedback, sample low-confidence or flagged items, and feed labels into retraining | Actual Top-3 clicks record feedback in `ml_feedback` and serving `/feedback`; `data/feedback_collector.py` and `training/build_training_set.py` support the retraining path | Implemented for user feedback; random/low-confidence sampling is documented as a possible extension |
@@ -1274,6 +1320,8 @@ Practical refactor decision:
 | Promotion/rollback decision endpoint | `/monitor/decision` returns `hold`, `promote_candidate`, or `rollback_active` using traffic, latency, error-rate, and feedback thresholds | `serving/app/main.py` |
 | Rollout trigger runner | Serving-owned trigger reads `/monitor/decision`, runs promotion or rollback, and can reload the deployed model | `serving/tools/execute_rollout_action.py` |
 | Training/evaluation gate | Challenger must pass Top-3 accuracy and macro-F1 gates and must not underperform the current champion | `training/train_model.py`, `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py` |
+| MLflow registry loop | Training registers challengers when `MLFLOW_TRACKING_URI` is configured; promotion/rollback updates the active MLflow alias | `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/mlflow-platform.yaml` |
+| Week-long traffic automation | A compressed or real-time one-week simulation sends traffic, records feedback, runs retraining, and triggers rollout decisions | `scripts/run_week_simulation.py` |
 | Data quality checks | Ingestion, training-set, and online-drift checks exist and can post status into serving | `data/data_quality_check.py`, `k8s/ml-system/base/data-quality-cronjob.yaml` |
 | Local full-stack test | One script generates import data, starts serving/monitoring, sends traffic, posts data quality, simulates rollout, and starts Actual | `scripts/final_project_test.sh` |
 | Fresh Chameleon bootstrap | One root script installs Docker, Node/Yarn, Python deps, starts services, and prints URLs | `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh` |
@@ -1340,7 +1388,7 @@ production Top-3 acceptance below threshold
 | K8s Actual image may not include this branch's frontend/core changes | The current K8s manifest references `actualbudget/actual-sync:latest`; final Kubernetes demo must run the modified Actual UI with prediction columns | Build and push a custom Actual image from this branch, then update `k8s/ml-system/base/actual-sync.yaml` or split web/sync services with the custom image |
 | K8s Grafana/Prometheus config is lighter than local Compose | Local Compose has full dashboard provisioning and alert rules; K8s manifest currently has basic Prometheus/Grafana setup | Mount `serving/monitoring/prometheus-alerts.yml` and Grafana dashboard JSONs through K8s ConfigMaps |
 | Training CronJob still uses synthetic bootstrap as a fallback path | Rubric prefers production data -> feedback -> retraining, not only synthetic data | Make `scripts/run_mlops_pipeline.py` prefer feedback-built datasets from `training/build_training_set.py`, and use synthetic data only when feedback volume is too small |
-| MLflow tracking exists but registry evidence is not fully operationalized | Training logs MLflow runs, but final evidence should show where runs/artifacts are tracked and which model passed gates | Configure shared `MLFLOW_TRACKING_URI`, store run id in promotion decisions, and register only promoted models |
+| MLflow registry needs Chameleon evidence | MLflow/Postgres/MinIO manifests and alias updates now exist, but final grading will want screenshots/logs from the running Chameleon deployment | Capture MLflow experiment runs, registered model versions, and `production`/`canary` alias changes during the week simulation |
 | Chameleon K8s needs real run evidence | Manifests render, but final grading will expect the system running on Chameleon | Apply staging/canary/production overlays, capture pods/services/CronJobs/logs, and record Grafana/Prometheus/video evidence |
 | Data-quality CronJob paths need production PVC data | The CronJob expects files under `/workspace/artifacts/data/`; those must exist in the shared PVC | Ensure pipeline writes canonical train/val/online feature files to those paths, or update the CronJob to use pipeline output paths |
 | Alerting lacks notification routing | Prometheus rules exist, but there is no Alertmanager notification path in K8s | For final polish, add Alertmanager or document dashboard-based alert review if notification setup is out of scope |

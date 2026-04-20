@@ -26,11 +26,31 @@ spec:
               env:
                 - name: SERVING_DATA_QUALITY_URL
                   value: http://smartcat-serving:8000/monitor/data-quality
+                - name: MLFLOW_TRACKING_URI
+                  value: http://mlflow:5000
+                - name: MLFLOW_REGISTER_MODEL_NAME
+                  value: actual-smart-transaction-categorizer
+                - name: MLFLOW_PROMOTION_ALIAS
+                  value: production
+                - name: MLFLOW_S3_ENDPOINT_URL
+                  value: http://mlflow-minio:9000
+                - name: AWS_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: mlflow-platform-secrets
+                      key: minio-root-user
+                - name: AWS_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: mlflow-platform-secrets
+                      key: minio-root-password
               command: ["python"]
               args:
                 - scripts/run_mlops_pipeline.py
                 - --workspace-dir
                 - /workspace/artifacts/pipeline
+                - --source-training-csv
+                - /workspace/artifacts/data/feedback_training_transactions.csv
                 - --deployed-dir
                 - /workspace/artifacts/deployed
                 - --archive-dir
@@ -39,7 +59,6 @@ spec:
                 - http://smartcat-serving:8000/monitor/data-quality
                 - --reload-url
                 - http://smartcat-serving:8000/admin/reload-model
-                - --synthetic-bootstrap
               volumeMounts:
                 - name: ml-artifacts
                   mountPath: /workspace/artifacts

@@ -10,6 +10,7 @@ SERVING_URL="${SERVING_URL:-http://127.0.0.1:8000}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
 GRAFANA_URL="${GRAFANA_URL:-http://127.0.0.1:3000}"
 GRAFANA_OVERVIEW_URL="${GRAFANA_OVERVIEW_URL:-$GRAFANA_URL/d/actual-ml-system-overview/actual-ml-system-overview}"
+MLFLOW_URL="${MLFLOW_URL:-http://127.0.0.1:5000}"
 
 wait_for_url() {
   local url="$1"
@@ -84,6 +85,7 @@ wait_for_url http://127.0.0.1:3001 "Actual web" 90 || true
 wait_for_url http://127.0.0.1:5006/health "Actual sync" 90 || true
 wait_for_url "$PROMETHEUS_URL/-/ready" "Prometheus" 60 || true
 wait_for_url "$GRAFANA_URL/api/health" "Grafana" 60 || true
+wait_for_url "$MLFLOW_URL" "MLflow" 60 || true
 
 echo "Opening project services in Chrome..."
 open_url "$ACTUAL_URL"
@@ -92,6 +94,7 @@ open_url "$SERVING_URL/docs"
 open_url "$SERVING_URL/monitor/summary"
 open_url "$PROMETHEUS_URL"
 open_url "$GRAFANA_OVERVIEW_URL"
+open_url "$MLFLOW_URL"
 
 cat <<EOF
 
@@ -107,4 +110,7 @@ Use Actual's built-in flow:
 
 Grafana login:
   admin / admin
+
+MLflow:
+  $MLFLOW_URL
 EOF

@@ -9,6 +9,7 @@ import joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
+from mlflow.tracking import MlflowClient
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
@@ -154,6 +155,47 @@ def maybe_start_mlflow(run_name: str):
     return mlflow.start_run(run_name=run_name, log_system_metrics=True)
 
 
+def register_model_if_configured(
+    run_id: str,
+    model_name: str | None,
+    metadata: dict,
+) -> dict:
+    if not model_name:
+        return {}
+
+    # Register the candidate in MLflow so promotion/rollback can point to an
+    # auditable model version instead of only a copied file on disk.
+    model_uri = f"runs:/{run_id}/sk_model"
+    registered_model = mlflow.register_model(model_uri=model_uri, name=model_name)
+    client = MlflowClient()
+    client.set_model_version_tag(
+        name=model_name,
+        version=registered_model.version,
+        key="actual.role",
+        value="candidate",
+    )
+    client.set_model_version_tag(
+        name=model_name,
+        version=registered_model.version,
+        key="actual.model_version",
+        value=str(metadata["model_version"]),
+    )
+    for split_name, split_metrics in metadata["metrics"].items():
+        for metric_name, value in split_metrics.items():
+            client.set_model_version_tag(
+                name=model_name,
+                version=registered_model.version,
+                key=f"actual.{split_name}.{metric_name}",
+                value=str(value),
+            )
+    return {
+        "mlflow_run_id": run_id,
+        "mlflow_model_name": model_name,
+        "mlflow_model_version": str(registered_model.version),
+        "mlflow_model_uri": model_uri,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Train the Actual smart transaction categorizer.")
     parser.add_argument("--train-dataset", required=True)
@@ -162,6 +204,11 @@ def main():
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--external-dataset", help="Optional CSV/parquet dataset used for pretraining or warm-start supervision.")
     parser.add_argument("--run-name", default="smart-transaction-categorizer")
+    parser.add_argument(
+        "--register-model-name",
+        default=os.environ.get("MLFLOW_REGISTER_MODEL_NAME"),
+        help="Optional MLflow registered model name for challenger registration.",
+    )
     parser.add_argument("--max-word-features", type=int, default=25000)
     parser.add_argument("--max-char-features", type=int, default=25000)
     parser.add_argument("--c-value", type=float, default=2.0)
@@ -231,6 +278,15 @@ def main():
 
         mlflow.log_artifacts(str(output_dir), artifact_path="serving_bundle")
         mlflow.sklearn.log_model(sk_model=model, artifact_path="sk_model")
+        registry_metadata = register_model_if_configured(
+            run.info.run_id,
+            args.register_model_name,
+            metadata,
+        )
+        if registry_metadata:
+            metadata.update(registry_metadata)
+            (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+            mlflow.log_dict(metadata, artifact_file="serving_bundle/metadata.json")
 
         print(json.dumps({"model_version": model_version, "test_metrics": test_metrics}, indent=2))
 
