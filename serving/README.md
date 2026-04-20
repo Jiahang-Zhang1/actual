@@ -55,6 +55,7 @@ python3 run.py smoke
 ## Main files
 
 - `app/`: FastAPI service and backends
+- `SERVICES.md`: service inventory for online services, automation, monitoring, and rollout controls
 - `TEAM_TESTING_README.md`: team end-to-end testing runbook
 - `tools/prepare_artifacts.py`: source joblib -> ONNX -> dynamic quant artifacts
 - `tools/benchmark_http.py`: online benchmark for `/predict` and `/predict_batch`
