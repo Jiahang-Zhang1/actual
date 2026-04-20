@@ -28,7 +28,9 @@ services:
     environment:
       SERVICE_HOST: 0.0.0.0
       SERVICE_PORT: ${SERVICE_PORT:-8000}
-      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Keep one worker per container so Prometheus scrapes a complete in-memory
+      # metric set; scale with replicas/HPA instead of multi-worker processes.
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-1}
       BACKEND_KIND: ${BACKEND_KIND:-auto}
       MODEL_PATH: ${MODEL_PATH:-/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx}
       SOURCE_MODEL_PATH: ${SOURCE_MODEL_PATH:-/workspace/models/source/v2_tfidf_linearsvc_model.joblib}

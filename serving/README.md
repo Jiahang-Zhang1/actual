@@ -1202,7 +1202,7 @@ cd serving
 python3 run.py doctor
 python3 run.py build
 python3 run.py prepare
-python3 run.py up --variant onnx_dynamic_quant --workers 2
+python3 run.py up --variant onnx_dynamic_quant --workers 1
 python3 run.py smoke
 ```
 

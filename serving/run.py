@@ -32,7 +32,9 @@ MODEL_BUNDLE_DIR=/workspace/runtime/deployed
 
 MODEL_VERSION=v2_tfidf_linearsvc
 TOP_K=3
-WEB_CONCURRENCY=2
+# Keep one worker per container so Prometheus metrics are complete per scrape.
+# Use replicas/HPA for production scale-out instead of multi-worker processes.
+WEB_CONCURRENCY=1
 LOG_LEVEL=info
 
 SERVICE_CPUS=2.0
@@ -593,7 +595,7 @@ def parse_args() -> argparse.Namespace:
 
     p_up = sub.add_parser("up")
     p_up.add_argument("--variant", choices=["baseline", "onnx", "onnx_dynamic_quant"], default="onnx_dynamic_quant")
-    p_up.add_argument("--workers", type=int, default=2)
+    p_up.add_argument("--workers", type=int, default=1)
     p_up.add_argument("--cpus", default="2.0")
     p_up.add_argument("--mem", default="3g")
     p_up.add_argument("--host-port", type=int, default=8000)

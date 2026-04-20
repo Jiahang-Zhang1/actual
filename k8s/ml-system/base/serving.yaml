@@ -37,7 +37,9 @@ spec:
             - name: SERVICE_PORT
               value: "8000"
             - name: WEB_CONCURRENCY
-              value: "2"
+              # Keep one worker per pod so Prometheus sees complete per-pod
+              # metrics; use replicas/HPA below for production scaling.
+              value: "1"
             - name: RUNTIME_DIR
               value: /workspace/runtime
           volumeMounts:
