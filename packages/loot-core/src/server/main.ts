@@ -5,6 +5,7 @@ import * as connection from '#platform/server/connection';
 import * as fs from '#platform/server/fs';
 import { logger, setVerboseMode } from '#platform/server/log';
 import * as sqlite from '#platform/server/sqlite';
+import { app as mlApp } from '#server/ml/app';
 import { q } from '#shared/query';
 import { amountToInteger, integerToAmount } from '#shared/util';
 import type { Handlers } from '#types/handlers';
@@ -40,8 +41,6 @@ import { app as toolsApp } from './tools/app';
 import { app as transactionsApp } from './transactions/app';
 import * as rules from './transactions/transaction-rules';
 import { redo, undo } from './undo';
-
-import { app as mlApp } from '#server/ml/app';
 
 // handlers
 

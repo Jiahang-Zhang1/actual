@@ -1,0 +1,9 @@
+apiVersion: 1
+
+providers:
+  - name: actual-ml
+    orgId: 1
+    folder: Actual ML
+    type: file
+    options:
+      path: /var/lib/grafana/dashboards

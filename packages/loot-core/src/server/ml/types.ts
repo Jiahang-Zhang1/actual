@@ -3,6 +3,11 @@ export type MlPredictRequest = {
   transactionDescription: string;
   country?: string | null;
   currency?: string | null;
+  amount?: number | null;
+  transactionDate?: string | null;
+  accountId?: string | null;
+  notes?: string | null;
+  importedDescription?: string | null;
 };
 
 export type MlCategoryScore = {
@@ -17,6 +22,31 @@ export type MlPredictResponse = {
   model_version: string;
 };
 
+export type MlBatchPredictResponse = {
+  items: MlPredictResponse[];
+};
+
+export type MlFeedbackRequest = {
+  transactionId: string;
+  modelVersion: string;
+  predictedCategoryId: string;
+  appliedCategoryId: string;
+  confidence?: null | number;
+  candidateCategoryIds?: string[];
+};
+
+export type MlFeedbackResponse = {
+  status: string;
+  saved: boolean;
+};
+
+export type MlPredictionStatus =
+  | 'pending'
+  | 'accepted_top1'
+  | 'accepted_top3'
+  | 'overridden'
+  | 'ignored';
+
 export type MlPredictionRecord = {
   id?: string;
   transaction_id: string;
@@ -24,7 +54,7 @@ export type MlPredictionRecord = {
   predicted_category_id: string;
   confidence: number;
   top_categories_json: string;
-  status: 'pending' | 'accepted_top1' | 'accepted_top3' | 'overridden' | 'ignored';
+  status: MlPredictionStatus;
   created_at: string;
   updated_at: string;
 };

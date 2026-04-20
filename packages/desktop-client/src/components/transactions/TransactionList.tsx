@@ -243,6 +243,7 @@ type TransactionListProps = Pick<
   | 'categoryGroups'
   | 'dateFormat'
   | 'hideFraction'
+  | 'getMlSuggestion'
   | 'isAdding'
   | 'isMatched'
   | 'isNew'
@@ -254,6 +255,7 @@ type TransactionListProps = Pick<
   | 'onCloseAddTransaction'
   | 'onCreatePayee'
   | 'onCreateRule'
+  | 'onApplyMlSuggestion'
   | 'onMakeAsNonSplitTransactions'
   | 'onSort'
   | 'onScheduleAction'
@@ -314,6 +316,8 @@ export function TransactionList({
   onCloseAddTransaction,
   onCreatePayee,
   onApplyFilter,
+  getMlSuggestion,
+  onApplyMlSuggestion,
   showSelection = true,
   allowSplitTransaction = true,
   onBatchDelete,
@@ -767,6 +771,8 @@ export function TransactionList({
       onCreateRule={onCreateRule}
       onScheduleAction={onScheduleAction}
       onMakeAsNonSplitTransactions={onMakeAsNonSplitTransactions}
+      getMlSuggestion={getMlSuggestion}
+      onApplyMlSuggestion={onApplyMlSuggestion}
       showSelection={showSelection}
       allowSplitTransaction={allowSplitTransaction}
     />

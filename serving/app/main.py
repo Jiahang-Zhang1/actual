@@ -379,6 +379,11 @@ def healthz() -> HealthResponse:
     )
 
 
+@app.get("/health", response_model=HealthResponse)
+def health() -> HealthResponse:
+    return healthz()
+
+
 @app.get("/readyz", response_model=HealthResponse)
 def readyz() -> HealthResponse:
     try:

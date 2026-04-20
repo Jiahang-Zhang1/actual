@@ -4,7 +4,7 @@ metadata:
   name: build-training-set-cron
   namespace: actual-training
 spec:
-  schedule: "0 */6 * * *"
+  schedule: '0 */6 * * *'
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 2
@@ -24,7 +24,7 @@ spec:
               envFrom:
                 - configMapRef:
                     name: training-config
-              command: ["/bin/sh", "-c"]
+              command: ['/bin/sh', '-c']
               args:
                 - |
                   python /app/training/build_training_set.py \
@@ -38,11 +38,11 @@ spec:
                   mountPath: /outputs
               resources:
                 requests:
-                  cpu: "250m"
-                  memory: "512Mi"
+                  cpu: '250m'
+                  memory: '512Mi'
                 limits:
-                  cpu: "1"
-                  memory: "2Gi"
+                  cpu: '1'
+                  memory: '2Gi'
           volumes:
             - name: actual-data
               persistentVolumeClaim:

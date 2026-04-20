@@ -3,9 +3,6 @@ import type { ReactElement, RefObject } from 'react';
 import { Trans } from 'react-i18next';
 import { Navigate, useLocation, useParams } from 'react-router';
 
-import { AISuggestionBadge } from './AISuggestionBadge';
-import { AISuggestionPopover } from './AISuggestionPopover';
-
 import { styles } from '@actual-app/components/styles';
 import { theme } from '@actual-app/components/theme';
 import { View } from '@actual-app/components/view';
@@ -313,76 +310,78 @@ class AccountInternal extends PureComponent<
   unlisten?: () => void;
   dispatchSelected?: (action: Actions) => void;
 
-  getPrediction = async (transactionId: string): Promise<MlPrediction | null> => {
-  try {
-    const result = await send('ml-get-latest-prediction', transactionId);
-    return result ?? null;
-  } catch (e) {
-    console.error('Failed to get ML prediction', e);
-    return null;
-  }
-};
+  getPrediction = async (
+    transactionId: string,
+  ): Promise<MlPrediction | null> => {
+    try {
+      const result = await send('ml-get-latest-prediction', transactionId);
+      return result ?? null;
+    } catch (e) {
+      console.error('Failed to get ML prediction', e);
+      return null;
+    }
+  };
 
   refreshMlPredictions = async (transactions: TransactionEntity[]) => {
-  const ids = transactions
-    .filter(t => t && t.id && !t.is_child)
-    .map(t => t.id);
+    const ids = transactions
+      .filter(t => t && t.id && !t.is_child)
+      .map(t => t.id);
 
-  if (ids.length === 0) {
-    this.setState({ mlPredictionsById: {} });
-    return;
-  }
+    if (ids.length === 0) {
+      this.setState({ mlPredictionsById: {} });
+      return;
+    }
 
-  this.setState({ mlPredictionsLoading: true });
+    this.setState({ mlPredictionsLoading: true });
 
-  const entries = await Promise.all(
-    ids.map(async id => {
-      const prediction = await this.getPrediction(id);
-      return [id, prediction] as const;
-    }),
-  );
+    const entries = await Promise.all(
+      ids.map(async id => {
+        const prediction = await this.getPrediction(id);
+        return [id, prediction] as const;
+      }),
+    );
 
-  this.setState({
-    mlPredictionsById: Object.fromEntries(entries),
-    mlPredictionsLoading: false,
-  });
-};
+    this.setState({
+      mlPredictionsById: Object.fromEntries(entries),
+      mlPredictionsLoading: false,
+    });
+  };
 
   applySuggestedCategory = async (
-  transaction: TransactionEntity,
-  categoryId: string,
-) => {
-  await send('transactions-batch-update', {
-    updated: [{ id: transaction.id, category: categoryId }],
-  });
+    transaction: TransactionEntity,
+    categoryId: string,
+  ) => {
+    await send('transactions-batch-update', {
+      updated: [{ id: transaction.id, category: categoryId }],
+    });
 
-  await send('ml-record-feedback', {
-    transactionId: transaction.id,
-    finalCategoryId: categoryId,
-  });
+    await send('ml-record-feedback', {
+      transactionId: transaction.id,
+      finalCategoryId: categoryId,
+    });
 
-  await this.refetchTransactions();
-};
+    await this.refetchTransactions();
+  };
 
   getTopCategories = (prediction: MlPrediction | null) => {
-  if (!prediction) {
-    return [];
-  }
-
-  if (Array.isArray(prediction.top_categories)) {
-    return prediction.top_categories;
-  }
-
-  if (prediction.top_categories_json) {
-    try {
-      return JSON.parse(prediction.top_categories_json);
-    } catch {
+    if (!prediction) {
       return [];
     }
-  }
 
-  return [];
-};
+    if (Array.isArray(prediction.top_categories)) {
+      return prediction.top_categories;
+    }
+
+    if (prediction.top_categories_json) {
+      try {
+        return JSON.parse(prediction.top_categories_json);
+      } catch {
+        return [];
+      }
+    }
+
+    return [];
+  };
 
   constructor(props: AccountInternalProps) {
     super(props);
@@ -390,26 +389,26 @@ class AccountInternal extends PureComponent<
     this.table = createRef();
 
     this.state = {
-  search: '',
-  filterConditions: props.filterConditions || [],
-  filterId: undefined,
-  filterConditionsOp: 'and',
-  loading: true,
-  workingHard: false,
-  reconcileAmount: null,
-  transactions: [],
-  showBalances: props.showBalances,
-  balances: null,
-  showCleared: props.showCleared,
-  showReconciled: props.showReconciled,
-  nameError: '',
-  isAdding: false,
-  sort: null,
-  filteredAmount: null,
+      search: '',
+      filterConditions: props.filterConditions || [],
+      filterId: undefined,
+      filterConditionsOp: 'and',
+      loading: true,
+      workingHard: false,
+      reconcileAmount: null,
+      transactions: [],
+      showBalances: props.showBalances,
+      balances: null,
+      showCleared: props.showCleared,
+      showReconciled: props.showReconciled,
+      nameError: '',
+      isAdding: false,
+      sort: null,
+      filteredAmount: null,
 
-  mlPredictionsById: {},
-  mlPredictionsLoading: false,
-};
+      mlPredictionsById: {},
+      mlPredictionsLoading: false,
+    };
   }
 
   async componentDidMount() {
@@ -479,7 +478,10 @@ class AccountInternal extends PureComponent<
     }
   }
 
-  componentDidUpdate(prevProps: AccountInternalProps, prevState: AccountInternalState) {
+  componentDidUpdate(
+    prevProps: AccountInternalProps,
+    prevState: AccountInternalState,
+  ) {
     // If the active account changes - close the transaction entry mode
     if (this.state.isAdding && this.props.accountId !== prevProps.accountId) {
       this.setState({ isAdding: false });
@@ -502,11 +504,11 @@ class AccountInternal extends PureComponent<
       this.setState({ sort: null, search: '', filterConditions: [] });
     }
     const prevIds = prevState.transactions.map(t => t.id).join(',');
-  const currIds = this.state.transactions.map(t => t.id).join(',');
+    const currIds = this.state.transactions.map(t => t.id).join(',');
 
-  if (prevIds !== currIds) {
-    void this.refreshMlPredictions(this.state.transactions);
-  }
+    if (prevIds !== currIds) {
+      void this.refreshMlPredictions(this.state.transactions);
+    }
   }
 
   componentWillUnmount() {
@@ -1941,41 +1943,29 @@ class AccountInternal extends PureComponent<
                   account={account}
                   transactions={transactions}
                   allTransactions={allTransactions}
+                  getMlSuggestion={(transactionId: string) => {
+                    const prediction =
+                      this.state.mlPredictionsById[transactionId];
+                    if (!prediction || prediction.confidence < 0.35) {
+                      return null;
+                    }
 
-                  mlPredictionsById={this.state.mlPredictionsById}
-  getMlTopCategories={(transactionId: string) => {
-    const prediction = this.state.mlPredictionsById[transactionId];
-    return this.getTopCategories(prediction);
-  }}
-  renderMlBadge={(transaction: TransactionEntity) => {
-    const prediction = this.state.mlPredictionsById[transaction.id];
-    if (!prediction || prediction.confidence < 0.35) {
-      return null;
-    }
+                    const topCategories = this.getTopCategories(prediction);
+                    if (topCategories.length === 0) {
+                      return null;
+                    }
 
-    return <AISuggestionBadge confidence={prediction.confidence} />;
-  }}
-  onApplyMlSuggestion={async (
-    transaction: TransactionEntity,
-    categoryId: string,
-  ) => {
-    await this.applySuggestedCategory(transaction, categoryId);
-  }}
-
-const prediction = mlPredictionsById?.[transaction.id];
-const topCategories = getMlTopCategories?.(transaction.id) ?? [];
-
-<div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-  <CategoryCell transaction={transaction} />
-  {renderMlBadge?.(transaction)}
-  {prediction && topCategories.length > 0 ? (
-    <AISuggestionPopover
-      topCategories={topCategories}
-      onAccept={categoryId => onApplyMlSuggestion?.(transaction, categoryId)}
-    />
-  ) : null}
-</div>
-                  
+                    return {
+                      confidence: prediction.confidence,
+                      topCategories,
+                    };
+                  }}
+                  onApplyMlSuggestion={async (
+                    transaction: TransactionEntity,
+                    categoryId: string,
+                  ) => {
+                    await this.applySuggestedCategory(transaction, categoryId);
+                  }}
                   loadMoreTransactions={() =>
                     this.paged && this.paged.fetchNext()
                   }

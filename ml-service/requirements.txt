@@ -1,0 +1,7 @@
+fastapi
+joblib
+pandas
+prometheus-client
+pydantic
+scikit-learn
+uvicorn[standard]

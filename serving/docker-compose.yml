@@ -6,9 +6,9 @@ x-common: &common
   env_file:
     - .env
   environment:
-    PYTHONUNBUFFERED: "1"
+    PYTHONUNBUFFERED: '1'
     PYTHONPATH: /workspace
-  user: "${UID:-1000}:${GID:-1000}"
+  user: '${UID:-1000}:${GID:-1000}'
   volumes:
     - .:/workspace
 
@@ -16,9 +16,9 @@ services:
   serve:
     <<: *common
     container_name: actualbudget-serving-app
-    command: ["python", "-m", "app.launch"]
+    command: ['python', '-m', 'app.launch']
     ports:
-      - "${HOST_PORT:-8000}:8000"
+      - '${HOST_PORT:-8000}:8000'
     environment:
       SERVICE_HOST: 0.0.0.0
       SERVICE_PORT: ${SERVICE_PORT:-8000}
@@ -45,13 +45,13 @@ services:
       ROLLBACK_MAX_ERROR_RATE: ${ROLLBACK_MAX_ERROR_RATE:-0.02}
       ROLLBACK_MIN_TOP1_ACCEPTANCE: ${ROLLBACK_MIN_TOP1_ACCEPTANCE:-0.45}
       ROLLBACK_MIN_TOP3_ACCEPTANCE: ${ROLLBACK_MIN_TOP3_ACCEPTANCE:-0.70}
-    cpus: "${SERVICE_CPUS:-2.0}"
-    mem_limit: "${SERVICE_MEM_LIMIT:-3g}"
+    cpus: '${SERVICE_CPUS:-2.0}'
+    mem_limit: '${SERVICE_MEM_LIMIT:-3g}'
 
   tooling:
     <<: *common
-    profiles: ["tools"]
-    entrypoint: ["python"]
+    profiles: ['tools']
+    entrypoint: ['python']
 
   prometheus:
     image: prom/prometheus:latest
@@ -59,9 +59,10 @@ services:
     depends_on:
       - serve
     ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
+      - '${PROMETHEUS_PORT:-9090}:9090'
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
       - prometheus_data:/prometheus
 
   grafana:
@@ -70,7 +71,7 @@ services:
     depends_on:
       - prometheus
     ports:
-      - "${GRAFANA_PORT:-3000}:3000"
+      - '${GRAFANA_PORT:-3000}:3000'
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}

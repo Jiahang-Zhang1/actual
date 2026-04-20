@@ -1,6 +1,10 @@
+import { logger } from '#platform/server/log';
 import { createApp } from '#server/app';
 import { aqlQuery } from '#server/aql';
 import * as db from '#server/db';
+import { predictCategory, predictCategoryBatch } from '#server/ml/service';
+import { savePrediction } from '#server/ml/store';
+import type { MlPredictRequest } from '#server/ml/types';
 import { mutator } from '#server/mutators';
 import { undoable } from '#server/undo';
 import { q, Query } from '#shared/query';
@@ -19,9 +23,6 @@ import { mergeTransactions } from './merge';
 
 import { batchUpdateTransactions } from '.';
 
-import { predictCategory } from '#server/ml/service';
-import { savePrediction } from '#server/ml/store';
-
 export type TransactionHandlers = {
   'transactions-batch-update': typeof handleBatchUpdateTransactions;
   'transaction-add': typeof addTransaction;
@@ -34,6 +35,11 @@ export type TransactionHandlers = {
   'transactions-merge': typeof mergeTransactions;
   'get-earliest-transaction': typeof getEarliestTransaction;
   'get-latest-transaction': typeof getLatestTransaction;
+};
+
+type PredictionCandidate = {
+  transactionId: string;
+  payload: MlPredictRequest;
 };
 
 async function handleBatchUpdateTransactions({
@@ -52,12 +58,7 @@ async function handleBatchUpdateTransactions({
   });
 
   const candidates = [...(added || []), ...(updated || [])];
-
-  for (const trans of candidates) {
-    if (trans?.id) {
-      await maybePredictForTransaction(trans as TransactionEntity);
-    }
-  }
+  await maybePredictForTransactions(candidates);
 
   return result;
 }
@@ -161,48 +162,106 @@ async function getLatestTransaction() {
   return data[0] || null;
 }
 
+async function toPredictionCandidate(
+  transactionRef: Partial<TransactionEntity> | undefined,
+): Promise<null | PredictionCandidate> {
+  if (!transactionRef?.id) {
+    return null;
+  }
 
+  const transaction = await db.getTransaction(transactionRef.id);
+  if (!transaction || transaction.is_child || transaction.is_parent) {
+    return null;
+  }
 
-async function maybePredictForTransaction(transaction: TransactionEntity) {
-  // safeguarding：没有 payee/description 时不预测
+  // Only generate suggestions for uncategorized transactions.
+  if (transaction.category) {
+    return null;
+  }
+
+  const payeeName =
+    transaction.payee != null
+      ? (await db.getPayee(transaction.payee))?.name
+      : null;
+
   const description =
-    transaction.payee_name ||
-    transaction.notes ||
-    transaction.imported_description ||
-    '';
+    payeeName || transaction.imported_payee || transaction.notes || '';
 
   if (!description.trim()) {
     return null;
   }
 
+  const payload: MlPredictRequest = {
+    transactionId: transaction.id,
+    transactionDescription: description,
+    country: 'unknown',
+    currency: 'unknown',
+    amount: typeof transaction.amount === 'number' ? transaction.amount : null,
+    transactionDate: transaction.date || null,
+    accountId: transaction.account || null,
+    notes: transaction.notes || null,
+    importedDescription: transaction.imported_payee || null,
+  };
+
+  return {
+    transactionId: transaction.id,
+    payload,
+  };
+}
+
+async function maybePredictForTransaction(args: {
+  transactionId: string;
+  payload: MlPredictRequest;
+}) {
   try {
-    const prediction = await predictCategory({
-      transactionId: transaction.id,
-      transactionDescription: description,
-      country: 'unknown',
-      currency: transaction.currency || 'unknown',
-    });
-
-    if (!prediction) {
+    const prediction = await predictCategory(args.payload);
+    if (!prediction || prediction.confidence < 0.35) {
       return null;
     }
 
-    // safeguarding：低置信度不展示为强推荐
-    if (prediction.confidence < 0.35) {
-      return null;
-    }
-
-    await savePrediction(transaction.id, prediction);
+    await savePrediction(args.transactionId, prediction);
     return prediction;
   } catch (err) {
-    console.error('ML prediction failed', err);
+    logger.error('ML prediction failed', err);
     return null;
   }
 }
 
+async function maybePredictForTransactions(
+  transactions: Array<Partial<TransactionEntity> | undefined>,
+) {
+  const candidates = (
+    await Promise.all(
+      transactions.map(transaction => toPredictionCandidate(transaction)),
+    )
+  ).filter((candidate): candidate is PredictionCandidate => candidate !== null);
 
+  if (candidates.length === 0) {
+    return;
+  }
 
-
+  try {
+    const predictions = await predictCategoryBatch(
+      candidates.map(candidate => candidate.payload),
+    );
+    await Promise.all(
+      predictions.map(async (prediction, index) => {
+        if (!prediction || prediction.confidence < 0.35) {
+          return;
+        }
+        await savePrediction(candidates[index].transactionId, prediction);
+      }),
+    );
+  } catch (err) {
+    logger.error(
+      'ML batch prediction failed; falling back to single prediction',
+      err,
+    );
+    await Promise.all(
+      candidates.map(candidate => maybePredictForTransaction(candidate)),
+    );
+  }
+}
 
 export const app = createApp<TransactionHandlers>();
 

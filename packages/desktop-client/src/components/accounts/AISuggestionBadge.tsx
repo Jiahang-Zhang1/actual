@@ -1,10 +1,6 @@
 import React from 'react';
 
-export function AISuggestionBadge({
-  confidence,
-}: {
-  confidence: number;
-}) {
+export function AISuggestionBadge({ confidence }: { confidence: number }) {
   return (
     <span
       style={{

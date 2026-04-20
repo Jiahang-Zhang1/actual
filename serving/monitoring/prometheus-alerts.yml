@@ -1,0 +1,106 @@
+groups:
+  - name: smartcat-serving-rollout
+    rules:
+      - alert: SmartcatServingHighP95Latency
+        expr: |
+          1000 * histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+            )
+          ) > 250
+        for: 10m
+        labels:
+          severity: warning
+          stage: production
+        annotations:
+          summary: 'Serving p95 latency is above rollback threshold'
+          description: 'p95 latency for /predict and /predict_batch has been above 250ms for 10 minutes.'
+
+      - alert: SmartcatServingHighErrorRate
+        expr: |
+          sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+          > 0.02
+        for: 10m
+        labels:
+          severity: critical
+          stage: production
+        annotations:
+          summary: 'Serving 5xx error rate is above rollback threshold'
+          description: '5xx rate for /predict and /predict_batch exceeded 2% for 10 minutes.'
+
+      - alert: SmartcatServingLowTop1Acceptance
+        expr: |
+          (sum(increase(feedback_total[60m])) >= 10)
+          and
+          (
+            sum(increase(feedback_match_total[60m]))
+            /
+            clamp_min(sum(increase(feedback_total[60m])), 1e-9)
+            < 0.45
+          )
+        for: 10m
+        labels:
+          severity: warning
+          stage: production
+        annotations:
+          summary: 'Top-1 acceptance is below rollback threshold'
+          description: 'Top-1 acceptance dropped below 45% with enough feedback volume.'
+
+      - alert: SmartcatServingLowTop3Acceptance
+        expr: |
+          (sum(increase(feedback_total[60m])) >= 10)
+          and
+          (
+            sum(increase(feedback_top3_match_total[60m]))
+            /
+            clamp_min(sum(increase(feedback_total[60m])), 1e-9)
+            < 0.70
+          )
+        for: 10m
+        labels:
+          severity: critical
+          stage: production
+        annotations:
+          summary: 'Top-3 acceptance is below rollback threshold'
+          description: 'Top-3 acceptance dropped below 70% with enough feedback volume.'
+
+      - alert: SmartcatCandidatePromotionReady
+        expr: |
+          (sum(increase(http_requests_total{handler=~"/predict|/predict_batch"}[60m])) >= 100)
+          and (sum(increase(feedback_total[60m])) >= 20)
+          and (
+            1000 * histogram_quantile(
+              0.95,
+              sum by (le) (
+                rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+              )
+            ) <= 100
+          )
+          and (
+            sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+            <= 0.01
+          )
+          and (
+            sum(increase(feedback_match_total[60m]))
+            /
+            clamp_min(sum(increase(feedback_total[60m])), 1e-9)
+            >= 0.60
+          )
+          and (
+            sum(increase(feedback_top3_match_total[60m]))
+            /
+            clamp_min(sum(increase(feedback_total[60m])), 1e-9)
+            >= 0.80
+          )
+        for: 15m
+        labels:
+          severity: info
+          stage: candidate
+        annotations:
+          summary: 'Candidate appears ready for promotion'
+          description: 'Candidate satisfies request volume, latency, error, and acceptance thresholds.'

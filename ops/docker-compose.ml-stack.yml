@@ -1,0 +1,62 @@
+services:
+  actual-ml-inference:
+    build:
+      context: ..
+      dockerfile: ml-service/Dockerfile
+    container_name: actual-ml-inference
+    environment:
+      MODEL_DIR: /models/current
+    volumes:
+      - ../artifacts/deployed:/models/current:ro
+    ports:
+      - '8000:8000'
+    networks:
+      - actual-ml
+
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: actual-ml-prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - '9090:9090'
+    depends_on:
+      - actual-ml-inference
+    networks:
+      - actual-ml
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    container_name: actual-ml-grafana
+    ports:
+      - '3000:3000'
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - actual-ml
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: actual-ml-cadvisor
+    ports:
+      - '8080:8080'
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - actual-ml
+
+networks:
+  actual-ml: {}
+
+volumes:
+  grafana-data: {}

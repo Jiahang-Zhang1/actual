@@ -1,68 +1,62 @@
+import argparse
+import json
 import sqlite3
+from pathlib import Path
+
 import pandas as pd
-import os
-from datetime import datetime
 
-DB_PATH = os.getenv('ACTUAL_DB_PATH', '/home/cc/actual_budget.db')
 
-def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS ml_feedback (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            transaction_description TEXT NOT NULL,
-            country TEXT,
-            currency TEXT,
-            predicted_category TEXT,
-            corrected_category TEXT,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    conn.commit()
-    conn.close()
-    print("[PASS] Database initialized")
+def export_feedback_dataframe(conn: sqlite3.Connection) -> pd.DataFrame:
+    query = """
+    SELECT
+      f.transaction_id,
+      f.model_version,
+      f.predicted_category_id,
+      f.final_category_id,
+      f.feedback_status,
+      f.created_at,
+      t.date AS transaction_date,
+      t.amount,
+      t.account AS account_id,
+      COALESCE(t.currency, 'unknown') AS currency,
+      COALESCE(t.imported_description, p.name, t.notes, '') AS transaction_description
+    FROM ml_feedback f
+    JOIN transactions t
+      ON t.id = f.transaction_id
+    LEFT JOIN payees p
+      ON p.id = t.payee
+    ORDER BY f.created_at DESC
+    """
+    return pd.read_sql_query(query, conn)
 
-def store_feedback(transaction_description, country, currency,
-                   predicted_category, corrected_category):
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO ml_feedback
-        (transaction_description, country, currency, predicted_category, corrected_category)
-        VALUES (?, ?, ?, ?, ?)
-    """, (transaction_description, country, currency,
-          predicted_category, corrected_category))
-    conn.commit()
-    conn.close()
 
-def export_feedback(output_path=None):
-    if output_path is None:
-        output_path = os.getenv('DATA_PATH', '/home/cc') + '/feedback_data.csv'
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql("SELECT * FROM ml_feedback", conn)
-    conn.close()
-    df.to_csv(output_path, index=False)
-    print(f"[PASS] Exported {len(df)} feedback records to {output_path}")
-    return df
+def main():
+    parser = argparse.ArgumentParser(description="Export and summarize Actual ML feedback.")
+    parser.add_argument("--db-path", required=True, help="Path to the Actual SQLite database.")
+    parser.add_argument("--output", required=True, help="Output CSV or parquet file.")
+    args = parser.parse_args()
 
-def simulate_feedback():
-    test_cases = [
-        ("STARBUCKS STORE 1458", "US", "USD", "Shopping & Retail", "Food & Dining"),
-        ("UBER RIDE NYC", "US", "USD", "Food & Dining", "Transportation"),
-        ("NETFLIX SUBSCRIPTION", "UK", "GBP", "Utilities & Services", "Entertainment & Recreation"),
-        ("AMAZON PURCHASE", "AUSTRALIA", "AUD", "Transportation", "Shopping & Retail"),
-        ("CVS PHARMACY", "US", "USD", "Shopping & Retail", "Healthcare & Medical"),
-    ]
-    for desc, country, currency, predicted, corrected in test_cases:
-        store_feedback(desc, country, currency, predicted, corrected)
-        print(f"[INFO] Stored feedback: '{desc}' {predicted} -> {corrected}")
+    conn = sqlite3.connect(args.db_path)
+    try:
+        df = export_feedback_dataframe(conn)
+    finally:
+        conn.close()
+
+    output_path = Path(args.output)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    if output_path.suffix == ".csv":
+        df.to_csv(output_path, index=False)
+    else:
+        df.to_parquet(output_path, index=False)
+
+    summary = {
+        "rows": int(len(df)),
+        "feedback_status_counts": df["feedback_status"].value_counts(dropna=False).to_dict()
+        if not df.empty
+        else {},
+    }
+    print(json.dumps(summary, indent=2))
+
 
 if __name__ == "__main__":
-    init_db()
-    print("\n=== Simulating User Feedback ===")
-    simulate_feedback()
-    print("\n=== Exporting Feedback Data ===")
-    df = export_feedback()
-    print(f"[PASS] Feedback loop complete: {len(df)} records ready for retraining")
-    print(df.head())
+    main()

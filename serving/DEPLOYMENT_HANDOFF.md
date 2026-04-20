@@ -7,6 +7,7 @@
   - `POST /predict`
   - `POST /predict_batch`
   - `POST /feedback`
+  - `GET /health` (compat alias)
   - `GET /healthz`
   - `GET /readyz`
   - `GET /versionz`
@@ -68,3 +69,20 @@ Apply `k8s/serving.yaml`, then use:
   error rate, and feedback thresholds are met.
 - `ROLLOUT_CONTEXT=production`: `/monitor/decision` recommends `rollback_active` if latency,
   error rate, or acceptance thresholds are violated.
+
+## Trigger execution
+
+Use serving-owned trigger runner:
+
+```bash
+# dry-run plan
+python3 tools/execute_rollout_action.py --monitor-url http://localhost:8000/monitor/decision
+
+# execute action recommended by monitor/decision
+python3 tools/execute_rollout_action.py --execute --monitor-url http://localhost:8000/monitor/decision
+```
+
+The trigger runner calls repository scripts:
+
+- `scripts/promote_model.py`
+- `scripts/rollback_model.py`

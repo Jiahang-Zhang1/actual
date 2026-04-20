@@ -487,6 +487,100 @@ function HeaderCell({
   );
 }
 
+type MlSuggestion = {
+  confidence: number;
+  topCategories: Array<{ category_id: string; score: number }>;
+};
+
+function AISuggestionControl({
+  suggestion,
+  onAccept,
+}: {
+  suggestion: MlSuggestion;
+  onAccept: (categoryId: string) => Promise<void> | void;
+}) {
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      <View
+        innerRef={triggerRef}
+        style={{ display: 'inline-flex', marginLeft: 6 }}
+      >
+        <Button
+          variant="bare"
+          onPress={() => setIsOpen(open => !open)}
+          style={{
+            padding: '1px 6px',
+            borderRadius: 999,
+            border: `1px solid ${theme.noticeTextLight}`,
+            backgroundColor: theme.noticeBackground,
+            color: theme.noticeText,
+            fontSize: 11,
+            fontWeight: 600,
+            lineHeight: '16px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          AI {Math.round(suggestion.confidence * 100)}%
+        </Button>
+      </View>
+
+      <Popover
+        triggerRef={triggerRef}
+        placement="bottom end"
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        isNonModal
+        style={{ minWidth: 240, padding: 8 }}
+      >
+        <View style={{ gap: 6, minWidth: 240 }}>
+          <Text style={{ fontWeight: 600 }}>
+            <Trans>AI suggestions</Trans>
+          </Text>
+          <Text style={{ fontSize: 11, color: theme.pageTextSubdued }}>
+            <Trans>Pick a category to apply and log feedback.</Trans>
+          </Text>
+
+          {suggestion.topCategories.slice(0, 3).map(item => (
+            <Button
+              key={item.category_id}
+              variant="bare"
+              onPress={async () => {
+                setIsOpen(false);
+                await onAccept(item.category_id);
+              }}
+              style={{
+                width: '100%',
+                padding: '6px 8px',
+                borderRadius: 4,
+                backgroundColor: theme.buttonNormalBackground,
+                color: theme.buttonNormalText,
+              }}
+            >
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  width: '100%',
+                }}
+              >
+                <Text style={{ flex: 1, minWidth: 0 }}>{item.category_id}</Text>
+                <Text style={{ color: theme.pageTextSubdued }}>
+                  {Math.round(item.score * 100)}%
+                </Text>
+              </View>
+            </Button>
+          ))}
+        </View>
+      </Popover>
+    </>
+  );
+}
+
 type PayeeCellProps = {
   id: TransactionEntity['id'];
   payee?: PayeeEntity;
@@ -889,6 +983,13 @@ type TransactionProps = {
   showSelection?: boolean;
   allowSplitTransaction?: boolean;
   showHiddenCategories?: boolean;
+  getMlSuggestion?: (
+    transactionId: TransactionEntity['id'],
+  ) => MlSuggestion | null;
+  onApplyMlSuggestion?: (
+    transaction: TransactionEntity,
+    categoryId: string,
+  ) => Promise<void> | void;
   // Drag and drop props
   canDrag?: boolean;
   draggedDate?: string | null;
@@ -948,6 +1049,8 @@ const Transaction = memo(function Transaction({
   showSelection,
   allowSplitTransaction,
   showHiddenCategories,
+  getMlSuggestion,
+  onApplyMlSuggestion,
   canDrag = false,
   draggedDate,
   draggedId,
@@ -1174,6 +1277,10 @@ const Transaction = memo(function Transaction({
       : transferAccountsByTransaction[id];
   const isBudgetTransfer = transferAcct && transferAcct.offbudget === 0;
   const isOffBudget = account && account.offbudget === 1;
+  const mlSuggestion =
+    !isPreview && !isParent && !isChild && !categoryId && id && getMlSuggestion
+      ? getMlSuggestion(id)
+      : null;
 
   const valueStyle = added ? { fontWeight: 600 } : null;
   const backgroundFocus = focusedField === 'select';
@@ -1723,6 +1830,44 @@ const Transaction = memo(function Transaction({
             }
             exposed={focusedField === 'category'}
             onExpose={name => !isPreview && onEdit(id, name)}
+            unexposedContent={({ value: cellValue }) => (
+              <View
+                style={{
+                  width: '100%',
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  minWidth: 0,
+                }}
+              >
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                      ...(!categoryId
+                        ? {
+                            fontStyle: 'italic',
+                            fontWeight: 300,
+                            color: theme.formInputTextHighlight,
+                          }
+                        : valueStyle),
+                    }}
+                  >
+                    {cellValue}
+                  </Text>
+                </View>
+
+                {mlSuggestion && onApplyMlSuggestion ? (
+                  <AISuggestionControl
+                    suggestion={mlSuggestion}
+                    onAccept={categoryId =>
+                      onApplyMlSuggestion(originalTransaction, categoryId)
+                    }
+                  />
+                ) : null}
+              </View>
+            )}
             valueStyle={
               !categoryId
                 ? {
@@ -2267,6 +2412,13 @@ type TransactionTableInnerProps = {
 
   onSort: (field: string, ascDesc: 'asc' | 'desc') => void;
   showHiddenCategories?: boolean;
+  getMlSuggestion?: (
+    transactionId: TransactionEntity['id'],
+  ) => MlSuggestion | null;
+  onApplyMlSuggestion?: (
+    transaction: TransactionEntity,
+    categoryId: string,
+  ) => Promise<void> | void;
   // Drag and drop props
   canDrag?: boolean;
   draggedId?: TransactionEntity['id'] | null;
@@ -2454,6 +2606,8 @@ function TransactionTableInner({
         onMakeAsNonSplitTransactions={props.onMakeAsNonSplitTransactions}
         onSplit={props.onSplit}
         onManagePayees={props.onManagePayees}
+        getMlSuggestion={props.getMlSuggestion}
+        onApplyMlSuggestion={props.onApplyMlSuggestion}
         onCreatePayee={props.onCreatePayee}
         onToggleSplit={props.onToggleSplit}
         onNavigateToTransferAccount={onNavigateToTransferAccount}
@@ -2656,6 +2810,13 @@ export type TransactionTableProps = {
   showSelection: boolean;
   allowSplitTransaction?: boolean;
   onManagePayees: (id?: PayeeEntity['id']) => void;
+  getMlSuggestion?: (
+    transactionId: TransactionEntity['id'],
+  ) => MlSuggestion | null;
+  onApplyMlSuggestion?: (
+    transaction: TransactionEntity,
+    categoryId: string,
+  ) => Promise<void> | void;
 };
 
 export const TransactionTable = forwardRef(

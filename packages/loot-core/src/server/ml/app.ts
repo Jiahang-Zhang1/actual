@@ -2,11 +2,7 @@ import { createApp } from '#server/app';
 import { mutator } from '#server/mutators';
 
 import { predictCategory } from './service';
-import {
-  getLatestPrediction,
-  recordFeedback,
-  savePrediction,
-} from './store';
+import { getLatestPrediction, recordFeedback, savePrediction } from './store';
 import type { MlPredictRequest } from './types';
 
 export type MlHandlers = {
