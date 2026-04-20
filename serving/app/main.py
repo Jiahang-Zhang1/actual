@@ -15,7 +15,12 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import get_settings
 from app.feature_adapter import build_feature_frame, choose_description
-from app.runtime import get_backend, reload_backend, warmup_backend
+from app.runtime import (
+    get_backend,
+    refresh_backend_if_model_changed,
+    reload_backend,
+    warmup_backend,
+)
 from app.schemas import (
     BatchPredictRequest,
     CategoryScore,
@@ -96,6 +101,13 @@ data_quality_metric = Gauge(
     "Numeric metrics emitted by data quality checks.",
     ["stage", "metric"],
 )
+
+
+def _current_settings():
+    global settings
+    refresh_backend_if_model_changed()
+    settings = get_settings()
+    return settings
 
 
 def _utc_now_iso() -> str:
@@ -229,12 +241,13 @@ def _feedback_summary(window_minutes: int) -> Dict[str, Any]:
 
 
 def _monitor_summary() -> Dict[str, Any]:
-    window_minutes = settings.monitor_window_minutes
+    current_settings = _current_settings()
+    window_minutes = current_settings.monitor_window_minutes
     summary = {
-        "backend_kind": settings.backend_kind,
-        "model_version": settings.model_version,
-        "code_version": settings.code_version,
-        "rollout_context": settings.rollout_context,
+        "backend_kind": current_settings.backend_kind,
+        "model_version": current_settings.model_version,
+        "code_version": current_settings.code_version,
+        "rollout_context": current_settings.rollout_context,
         "window_minutes": window_minutes,
     }
     summary.update(_request_summary(window_minutes))
@@ -278,42 +291,43 @@ def _data_quality_summary(window_minutes: int) -> Dict[str, Any]:
 
 
 def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
+    current_settings = _current_settings()
     reasons: List[str] = []
     action = "hold"
     thresholds = {
         "promotion": {
-            "min_requests": settings.promotion_min_requests,
-            "min_feedback": settings.promotion_min_feedback,
-            "max_p95_ms": settings.promotion_max_p95_ms,
-            "max_error_rate": settings.promotion_max_error_rate,
-            "min_top1_acceptance": settings.promotion_min_top1_acceptance,
-            "min_top3_acceptance": settings.promotion_min_top3_acceptance,
+            "min_requests": current_settings.promotion_min_requests,
+            "min_feedback": current_settings.promotion_min_feedback,
+            "max_p95_ms": current_settings.promotion_max_p95_ms,
+            "max_error_rate": current_settings.promotion_max_error_rate,
+            "min_top1_acceptance": current_settings.promotion_min_top1_acceptance,
+            "min_top3_acceptance": current_settings.promotion_min_top3_acceptance,
         },
         "rollback": {
-            "min_requests": settings.rollback_min_requests,
-            "min_feedback": settings.rollback_min_feedback,
-            "max_p95_ms": settings.rollback_max_p95_ms,
-            "max_error_rate": settings.rollback_max_error_rate,
-            "min_top1_acceptance": settings.rollback_min_top1_acceptance,
-            "min_top3_acceptance": settings.rollback_min_top3_acceptance,
+            "min_requests": current_settings.rollback_min_requests,
+            "min_feedback": current_settings.rollback_min_feedback,
+            "max_p95_ms": current_settings.rollback_max_p95_ms,
+            "max_error_rate": current_settings.rollback_max_error_rate,
+            "min_top1_acceptance": current_settings.rollback_min_top1_acceptance,
+            "min_top3_acceptance": current_settings.rollback_min_top3_acceptance,
         },
     }
 
-    if settings.rollout_context == "candidate":
+    if current_settings.rollout_context == "candidate":
         # Candidate context can only propose promotion after meeting quality and
         # stability thresholds with enough traffic and feedback.
-        if summary["request_count"] < settings.promotion_min_requests:
+        if summary["request_count"] < current_settings.promotion_min_requests:
             reasons.append("candidate sample size too small for promotion")
-        if summary["feedback_count"] < settings.promotion_min_feedback:
+        if summary["feedback_count"] < current_settings.promotion_min_feedback:
             reasons.append("candidate feedback volume too small for promotion")
-        if summary["p95_latency_ms"] > settings.promotion_max_p95_ms:
+        if summary["p95_latency_ms"] > current_settings.promotion_max_p95_ms:
             reasons.append("candidate p95 latency above promotion threshold")
-        if summary["error_rate"] > settings.promotion_max_error_rate:
+        if summary["error_rate"] > current_settings.promotion_max_error_rate:
             reasons.append("candidate error rate above promotion threshold")
-        if summary["feedback_count"] >= settings.promotion_min_feedback:
-            if summary["top1_acceptance"] < settings.promotion_min_top1_acceptance:
+        if summary["feedback_count"] >= current_settings.promotion_min_feedback:
+            if summary["top1_acceptance"] < current_settings.promotion_min_top1_acceptance:
                 reasons.append("candidate top1 acceptance below promotion threshold")
-            if summary["top3_acceptance"] < settings.promotion_min_top3_acceptance:
+            if summary["top3_acceptance"] < current_settings.promotion_min_top3_acceptance:
                 reasons.append("candidate top3 acceptance below promotion threshold")
         if not reasons:
             action = "promote_candidate"
@@ -321,19 +335,19 @@ def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
     else:
         # Production context is conservative: trigger rollback when user quality
         # or operational SLOs fall below configured safety limits.
-        if summary["request_count"] >= settings.rollback_min_requests:
-            if summary["p95_latency_ms"] > settings.rollback_max_p95_ms:
+        if summary["request_count"] >= current_settings.rollback_min_requests:
+            if summary["p95_latency_ms"] > current_settings.rollback_max_p95_ms:
                 reasons.append("production p95 latency above rollback threshold")
-            if summary["error_rate"] > settings.rollback_max_error_rate:
+            if summary["error_rate"] > current_settings.rollback_max_error_rate:
                 reasons.append("production error rate above rollback threshold")
         else:
             reasons.append("production request volume too low for rollback decision")
-        if summary["feedback_count"] >= settings.rollback_min_feedback:
-            if summary["top1_acceptance"] < settings.rollback_min_top1_acceptance:
+        if summary["feedback_count"] >= current_settings.rollback_min_feedback:
+            if summary["top1_acceptance"] < current_settings.rollback_min_top1_acceptance:
                 reasons.append("production top1 acceptance below rollback threshold")
-            if summary["top3_acceptance"] < settings.rollback_min_top3_acceptance:
+            if summary["top3_acceptance"] < current_settings.rollback_min_top3_acceptance:
                 reasons.append("production top3 acceptance below rollback threshold")
-        elif summary["request_count"] >= settings.rollback_min_requests:
+        elif summary["request_count"] >= current_settings.rollback_min_requests:
             reasons.append("production feedback volume too low to evaluate acceptance")
         if any("rollback threshold" in r for r in reasons):
             action = "rollback_active"
@@ -346,7 +360,8 @@ def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _response_from_row(label: str, probabilities: np.ndarray, classes: List[str]) -> PredictResponse:
-    ordered_idx = np.argsort(probabilities)[::-1][: settings.top_k]
+    current_settings = _current_settings()
+    ordered_idx = np.argsort(probabilities)[::-1][: current_settings.top_k]
     top_categories = [
         CategoryScore(category_id=str(classes[idx]), score=round(float(probabilities[idx]), 6))
         for idx in ordered_idx
@@ -365,7 +380,7 @@ def _response_from_row(label: str, probabilities: np.ndarray, classes: List[str]
         predicted_category_id=str(predicted_label),
         confidence=confidence,
         top_categories=top_categories,
-        model_version=settings.model_version,
+        model_version=current_settings.model_version,
     )
 
 
@@ -375,6 +390,7 @@ def _predict_many(items: list[PredictRequest]) -> list[PredictResponse]:
     if any(not choose_description(item) for item in items):
         raise ValueError("transaction_description, transaction_description_clean, or merchant_text is required")
 
+    _current_settings()
     backend = get_backend()
     frame = build_feature_frame(items)
     output = backend.predict(frame)
@@ -427,12 +443,13 @@ def _startup() -> None:
 
 @app.get("/healthz", response_model=HealthResponse)
 def healthz() -> HealthResponse:
+    current_settings = _current_settings()
     return HealthResponse(
         status="ok",
         ready=True,
-        backend_kind=settings.backend_kind,
-        model_version=settings.model_version,
-        code_version=settings.code_version,
+        backend_kind=current_settings.backend_kind,
+        model_version=current_settings.model_version,
+        code_version=current_settings.code_version,
     )
 
 
@@ -445,12 +462,13 @@ def health() -> HealthResponse:
 def readyz() -> HealthResponse:
     try:
         warmup_backend()
+        current_settings = _current_settings()
         return HealthResponse(
             status="ready",
             ready=True,
-            backend_kind=settings.backend_kind,
-            model_version=settings.model_version,
-            code_version=settings.code_version,
+            backend_kind=current_settings.backend_kind,
+            model_version=current_settings.model_version,
+            code_version=current_settings.code_version,
         )
     except Exception as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -458,13 +476,14 @@ def readyz() -> HealthResponse:
 
 @app.get("/versionz", response_model=VersionResponse)
 def versionz() -> VersionResponse:
+    current_settings = _current_settings()
     backend = get_backend()
     return VersionResponse(
-        backend_kind=settings.backend_kind,
-        model_version=settings.model_version,
-        code_version=settings.code_version,
-        model_path=settings.model_path,
-        source_model_path=settings.source_model_path,
+        backend_kind=current_settings.backend_kind,
+        model_version=current_settings.model_version,
+        code_version=current_settings.code_version,
+        model_path=current_settings.model_path,
+        source_model_path=current_settings.source_model_path,
         providers=backend.providers(),
         hardware=hardware_string(),
     )
