@@ -30,6 +30,7 @@ Options:
   --skip-docker-install   Require Docker to already be installed.
   --test-rows N           Number of synthetic bank rows to generate. Default: 1500.
   --public-host HOST      Hostname or floating IP printed in the final URL summary.
+                         When set, an HTTPS Caddy proxy is also started on ports 80/443.
   -h, --help              Show this help text.
 
 Common first run:
@@ -343,10 +344,94 @@ detect_public_host() {
   hostname -I 2>/dev/null | awk '{print $1}'
 }
 
+sslip_suffix_for_host() {
+  local host="$1"
+  if [[ "$host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "${host}.sslip.io"
+  else
+    echo "$host"
+  fi
+}
+
+start_https_proxy() {
+  local host
+  host="$(detect_public_host)"
+  if [[ -z "$host" || "$host" == "<chameleon-floating-ip>" ]]; then
+    warn "Skipping HTTPS proxy because no public host was detected. Pass --public-host <floating-ip> to enable it."
+    return
+  fi
+
+  local suffix
+  suffix="$(sslip_suffix_for_host "$host")"
+
+  log "Starting HTTPS reverse proxy for browser-safe public access"
+  mkdir -p artifacts/chameleon/caddy
+  cat > artifacts/chameleon/caddy/Caddyfile <<CADDY
+actual.${suffix} {
+  encode zstd gzip
+  header {
+    Cross-Origin-Opener-Policy "same-origin"
+    Cross-Origin-Embedder-Policy "require-corp"
+  }
+  reverse_proxy 127.0.0.1:3001 {
+    # Actual uses Vite in this Chameleon demo. Vite rejects unknown Host
+    # headers, so the upstream request keeps the public IP host that was
+    # already accepted while the browser uses a trusted HTTPS origin.
+    header_up Host ${host}:3001
+    header_up X-Forwarded-Proto https
+  }
+}
+
+sync.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:5006
+}
+
+serving.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:8000
+}
+
+grafana.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:3000
+}
+
+prometheus.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:9090
+}
+
+mlflow.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:5000
+}
+
+minio.${suffix} {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:9001
+}
+CADDY
+
+  docker rm -f actual-chameleon-proxy >/dev/null 2>&1 || true
+  docker run -d \
+    --name actual-chameleon-proxy \
+    --restart unless-stopped \
+    --network host \
+    -v "$ROOT_DIR/artifacts/chameleon/caddy/Caddyfile:/etc/caddy/Caddyfile:ro" \
+    -v actual_chameleon_caddy_data:/data \
+    -v actual_chameleon_caddy_config:/config \
+    caddy:2.8 >/dev/null
+
+  wait_for_url "https://serving.${suffix}/readyz" "HTTPS serving proxy" 90 || true
+}
+
 print_summary() {
   local host
   host="$(detect_public_host)"
   [[ -n "$host" ]] || host="<chameleon-floating-ip>"
+  local suffix
+  suffix="$(sslip_suffix_for_host "$host")"
 
   cat <<SUMMARY
 
@@ -371,6 +456,18 @@ External browser URLs, if the Chameleon security group allows these ports:
   Prometheus:            http://${host}:9090
   Grafana:               http://${host}:3000
 
+Recommended HTTPS browser URLs:
+  Actual frontend:       https://actual.${suffix}
+  Actual server-dev:     https://sync.${suffix}
+  Serving API docs:      https://serving.${suffix}/docs
+  MLflow:                https://mlflow.${suffix}
+  MinIO console:         https://minio.${suffix}
+  Prometheus:            https://prometheus.${suffix}
+  Grafana:               https://grafana.${suffix}
+
+Use the HTTPS Actual URL for browser demos. Public HTTP is not a secure
+context, so Chrome blocks SharedArrayBuffer even when the service is healthy.
+
 Generated bank import file:
   artifacts/test-data/actual_bank_transactions.qif
 
@@ -386,7 +483,7 @@ Grafana login:
   admin / admin
 
 If external URLs do not open, update the Chameleon security group to allow:
-  TCP 3001, 5006, 8000, 5000, 9001, 9090, 3000
+  TCP 80, 443, 3001, 5006, 8000, 5000, 9001, 9090, 3000
 SUMMARY
 }
 
@@ -400,6 +497,7 @@ main() {
   start_serving_stack
   run_demo_traffic
   start_actual_dev_server
+  start_https_proxy
   print_summary
 }
 
