@@ -161,6 +161,11 @@ type TransactionHeaderProps = {
   field: string;
 };
 
+// Keep the short notes column from crowding the AI columns in demo-sized account tables.
+const NOTES_COLUMN_WIDTH = 120;
+const AI_SUGGESTION_COLUMN_WIDTH = 260;
+const AI_TOP_THREE_COLUMN_WIDTH = 440;
+
 const TransactionHeader = memo(
   ({
     hasSelected,
@@ -264,7 +269,7 @@ const TransactionHeader = memo(
         />
         <HeaderCell
           value={t('Notes')}
-          width="flex"
+          width={NOTES_COLUMN_WIDTH}
           alignItems="flex"
           marginLeft={-5}
           id="notes"
@@ -292,7 +297,7 @@ const TransactionHeader = memo(
         {showCategory && (
           <HeaderCell
             value={t('AI Suggestion')}
-            width={220}
+            width={AI_SUGGESTION_COLUMN_WIDTH}
             alignItems="flex"
             marginLeft={-5}
             id="ai-predictions"
@@ -301,7 +306,7 @@ const TransactionHeader = memo(
         {showCategory && (
           <HeaderCell
             value={t('All Top-3')}
-            width={390}
+            width={AI_TOP_THREE_COLUMN_WIDTH}
             alignItems="flex"
             marginLeft={-5}
             id="ai-top-3"
@@ -1865,7 +1870,7 @@ const Transaction = memo(function Transaction({
         ))()}
 
         <InputCell
-          width="flex"
+          width={NOTES_COLUMN_WIDTH}
           name="notes"
           textAlign="flex"
           exposed={focusedField === 'notes'}
@@ -2103,7 +2108,7 @@ const Transaction = memo(function Transaction({
 
         <Cell
           name="ai-predictions"
-          width={220}
+          width={AI_SUGGESTION_COLUMN_WIDTH}
           focused={false}
           plain
           style={{
@@ -2127,7 +2132,7 @@ const Transaction = memo(function Transaction({
         </Cell>
         <Cell
           name="ai-top-3"
-          width={390}
+          width={AI_TOP_THREE_COLUMN_WIDTH}
           focused={false}
           plain
           style={{
