@@ -14,12 +14,15 @@ opens the main service pages.
 Generated import file:
 
 ```text
-artifacts/test-data/actual_bank_transactions.csv
+artifacts/test-data/actual_bank_transactions.qif
 ```
 
-Use Actual's built-in `Create test file`, then import the CSV as bank
-transactions. This avoids relying on the demo budget while still testing the
-normal user flow.
+Use Actual's built-in `Create test file`, open an account, then import the QIF
+as bank transactions. This avoids relying on the demo budget while still
+testing the normal user flow.
+
+For the full team walkthrough, see
+`docs/ml-system/TEAM_TESTING_README.md`.
 
 ## Automated Pipeline
 
