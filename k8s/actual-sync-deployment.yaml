@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual-sync
+  namespace: actual-training
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: actual-sync
+  template:
+    metadata:
+      labels:
+        app: actual-sync
+    spec:
+      securityContext:
+        fsGroup: 1001
+      containers:
+        - name: actual-sync
+          image: YOUR_DOCKERHUB_USERNAME/actual-sync:training
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5006
+              name: http
+          volumeMounts:
+            - name: actual-data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:
+              port: 5006
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 5006
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "512Mi"
+            limits:
+              cpu: "2"
+              memory: "2Gi"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1001
+            runAsGroup: 1001
+            allowPrivilegeEscalation: false
+      volumes:
+        - name: actual-data
+          persistentVolumeClaim:
+            claimName: actual-data-pvc
