@@ -1,0 +1,768 @@
+{
+    "annotations": {
+        "list": []
+    },
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [
+        {
+            "asDropdown": false,
+            "icon": "external link",
+            "includeVars": false,
+            "keepTime": true,
+            "tags": [],
+            "targetBlank": false,
+            "title": "Serving API Docs",
+            "tooltip": "Open FastAPI docs",
+            "type": "link",
+            "url": "http://127.0.0.1:8000/docs"
+        },
+        {
+            "asDropdown": false,
+            "icon": "external link",
+            "includeVars": false,
+            "keepTime": true,
+            "tags": [],
+            "targetBlank": false,
+            "title": "Serving Summary",
+            "tooltip": "Open serving monitor summary",
+            "type": "link",
+            "url": "http://127.0.0.1:8000/monitor/summary"
+        }
+    ],
+    "panels": [
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [
+                        {
+                            "options": {
+                                "0": {
+                                    "color": "red",
+                                    "text": "DOWN"
+                                },
+                                "1": {
+                                    "color": "green",
+                                    "text": "UP"
+                                }
+                            },
+                            "type": "value"
+                        }
+                    ],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "red",
+                                "value": null
+                            },
+                            {
+                                "color": "green",
+                                "value": 1
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 0,
+                "y": 0
+            },
+            "id": 1,
+            "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "max(up{job=\"smartcat-serving\"})",
+                    "refId": "A"
+                }
+            ],
+            "title": "Serving Health",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 2,
+                    "unit": "reqps",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 4,
+                "y": 0
+            },
+            "id": 2,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:request_rate_5m",
+                    "refId": "A"
+                }
+            ],
+            "title": "Request Rate",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 1,
+                    "unit": "ms",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 100
+                            },
+                            {
+                                "color": "red",
+                                "value": 250
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 8,
+                "y": 0
+            },
+            "id": 3,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:p95_latency_ms_5m",
+                    "refId": "A"
+                }
+            ],
+            "title": "p95 Latency",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 2,
+                    "unit": "percentunit",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "green",
+                                "value": null
+                            },
+                            {
+                                "color": "yellow",
+                                "value": 0.01
+                            },
+                            {
+                                "color": "red",
+                                "value": 0.02
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 12,
+                "y": 0
+            },
+            "id": 4,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:error_rate_5m",
+                    "refId": "A"
+                }
+            ],
+            "title": "5xx Error Rate",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 1,
+                    "unit": "short",
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "blue",
+                                "value": null
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 16,
+                "y": 0
+            },
+            "id": 5,
+            "options": {
+                "colorMode": "value",
+                "graphMode": "area",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "sum(increase(feedback_total[1h]))",
+                    "refId": "A"
+                }
+            ],
+            "title": "Feedback Events (1h)",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "mappings": [
+                        {
+                            "options": {
+                                "0": {
+                                    "color": "red",
+                                    "text": "FAIL"
+                                },
+                                "1": {
+                                    "color": "green",
+                                    "text": "PASS"
+                                }
+                            },
+                            "type": "value"
+                        }
+                    ],
+                    "thresholds": {
+                        "mode": "absolute",
+                        "steps": [
+                            {
+                                "color": "red",
+                                "value": null
+                            },
+                            {
+                                "color": "green",
+                                "value": 1
+                            }
+                        ]
+                    }
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 4,
+                "w": 4,
+                "x": 20,
+                "y": 0
+            },
+            "id": 6,
+            "options": {
+                "colorMode": "background",
+                "graphMode": "none",
+                "justifyMode": "center",
+                "orientation": "auto",
+                "reduceOptions": {
+                    "calcs": [
+                        "min"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "textMode": "auto"
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:data_quality_pass_min",
+                    "refId": "A"
+                }
+            ],
+            "title": "Data Quality",
+            "type": "stat"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "drawStyle": "line",
+                        "fillOpacity": 12,
+                        "lineInterpolation": "smooth",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "showPoints": "never",
+                        "spanNulls": false
+                    },
+                    "unit": "reqps"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 4
+            },
+            "id": 7,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "sum by (handler) (rate(http_requests_total{handler=~\"/predict|/predict_batch\"}[5m]))",
+                    "legendFormat": "{{handler}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Serving Traffic By Endpoint",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "lineInterpolation": "smooth",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "showPoints": "never",
+                        "spanNulls": false
+                    },
+                    "unit": "ms"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 4
+            },
+            "id": 8,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:p95_latency_ms_5m",
+                    "legendFormat": "p95",
+                    "refId": "A"
+                },
+                {
+                    "expr": "smartcat:p50_latency_ms_5m",
+                    "legendFormat": "p50",
+                    "refId": "B"
+                }
+            ],
+            "title": "Latency Trend",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "lineInterpolation": "smooth",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "showPoints": "never",
+                        "spanNulls": false
+                    },
+                    "unit": "percentunit"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 4
+            },
+            "id": 9,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:top1_acceptance_1h",
+                    "legendFormat": "top1",
+                    "refId": "A"
+                },
+                {
+                    "expr": "smartcat:top3_acceptance_1h",
+                    "legendFormat": "top3",
+                    "refId": "B"
+                }
+            ],
+            "title": "Feedback Acceptance",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "decimals": 0,
+                    "unit": "short"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 0,
+                "y": 12
+            },
+            "id": 10,
+            "options": {
+                "displayMode": "gradient",
+                "maxVizHeight": 300,
+                "minVizHeight": 16,
+                "minVizWidth": 8,
+                "namePlacement": "auto",
+                "orientation": "horizontal",
+                "reduceOptions": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "fields": "",
+                    "values": false
+                },
+                "showUnfilled": true,
+                "valueMode": "color"
+            },
+            "targets": [
+                {
+                    "expr": "topk(8, sum by (category_id) (increase(predicted_class_total[$__range])))",
+                    "legendFormat": "{{category_id}}",
+                    "refId": "A"
+                }
+            ],
+            "title": "Top Predicted Categories",
+            "type": "bargauge"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {
+                    "custom": {
+                        "drawStyle": "line",
+                        "fillOpacity": 10,
+                        "lineInterpolation": "smooth",
+                        "lineWidth": 2,
+                        "pointSize": 5,
+                        "showPoints": "never",
+                        "spanNulls": false
+                    },
+                    "decimals": 2,
+                    "unit": "percentunit"
+                },
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 8,
+                "y": 12
+            },
+            "id": 11,
+            "options": {
+                "legend": {
+                    "calcs": [
+                        "lastNotNull"
+                    ],
+                    "displayMode": "list",
+                    "placement": "bottom",
+                    "showLegend": true
+                },
+                "tooltip": {
+                    "mode": "single",
+                    "sort": "none"
+                }
+            },
+            "targets": [
+                {
+                    "expr": "smartcat:avg_confidence_5m",
+                    "legendFormat": "avg confidence",
+                    "refId": "A"
+                },
+                {
+                    "expr": "smartcat:low_confidence_ratio_5m",
+                    "legendFormat": "low confidence <= 0.4",
+                    "refId": "B"
+                }
+            ],
+            "title": "Prediction Confidence",
+            "type": "timeseries"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 8,
+                "x": 16,
+                "y": 12
+            },
+            "id": 12,
+            "options": {
+                "showHeader": true
+            },
+            "targets": [
+                {
+                    "expr": "ALERTS{alertname=~\"Smartcat.*\",alertstate=\"firing\"}",
+                    "format": "table",
+                    "instant": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Firing System Alerts",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 0,
+                "y": 20
+            },
+            "id": 13,
+            "options": {
+                "showHeader": true
+            },
+            "targets": [
+                {
+                    "expr": "sum by (handler, status) (increase(http_requests_total{handler=~\"/predict|/predict_batch\"}[$__range]))",
+                    "format": "table",
+                    "instant": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Requests By Endpoint And Status",
+            "type": "table"
+        },
+        {
+            "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+            },
+            "fieldConfig": {
+                "defaults": {},
+                "overrides": []
+            },
+            "gridPos": {
+                "h": 8,
+                "w": 12,
+                "x": 12,
+                "y": 20
+            },
+            "id": 14,
+            "options": {
+                "showHeader": true
+            },
+            "targets": [
+                {
+                    "expr": "actual_data_quality_metric",
+                    "format": "table",
+                    "instant": true,
+                    "refId": "A"
+                }
+            ],
+            "title": "Latest Data Quality Metrics",
+            "type": "table"
+        }
+    ],
+    "refresh": "5s",
+    "schemaVersion": 39,
+    "tags": [
+        "actual",
+        "ml",
+        "overview",
+        "serving"
+    ],
+    "templating": {
+        "list": []
+    },
+    "time": {
+        "from": "now-1h",
+        "to": "now"
+    },
+    "timezone": "browser",
+    "title": "Actual ML System Overview",
+    "uid": "actual-ml-system-overview",
+    "version": 1,
+    "weekStart": ""
+}

@@ -88,6 +88,12 @@ Prometheus and Grafana are wired for serving KPIs:
 - `monitoring/prometheus-alerts.yml`
 - `monitoring/grafana/dashboards/*.json`
 
+The main Grafana entrypoint is the `Actual ML System Overview` dashboard:
+
+```text
+http://localhost:3000/d/actual-ml-system-overview/actual-ml-system-overview
+```
+
 `/monitor/decision` provides threshold-based action recommendations.
 To run trigger actions from serving:
 

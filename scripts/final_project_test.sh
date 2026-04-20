@@ -9,6 +9,7 @@ SYNC_URL="${SYNC_URL:-http://127.0.0.1:5006/accounts}"
 SERVING_URL="${SERVING_URL:-http://127.0.0.1:8000}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
 GRAFANA_URL="${GRAFANA_URL:-http://127.0.0.1:3000}"
+GRAFANA_OVERVIEW_URL="${GRAFANA_OVERVIEW_URL:-$GRAFANA_URL/d/actual-ml-system-overview/actual-ml-system-overview}"
 
 wait_for_url() {
   local url="$1"
@@ -90,7 +91,7 @@ open_url "$SYNC_URL"
 open_url "$SERVING_URL/docs"
 open_url "$SERVING_URL/monitor/summary"
 open_url "$PROMETHEUS_URL"
-open_url "$GRAFANA_URL"
+open_url "$GRAFANA_OVERVIEW_URL"
 
 cat <<EOF
 

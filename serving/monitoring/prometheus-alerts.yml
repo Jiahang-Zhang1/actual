@@ -1,6 +1,65 @@
 # Rollout safety rules: detect production regressions for rollback and
 # candidate readiness signals for controlled promotion.
 groups:
+  - name: smartcat-serving-summary
+    interval: 15s
+    rules:
+      - record: smartcat:request_rate_5m
+        expr: |
+          sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m]))
+
+      - record: smartcat:error_rate_5m
+        expr: |
+          sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+
+      - record: smartcat:p95_latency_ms_5m
+        expr: |
+          1000 * histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+            )
+          )
+
+      - record: smartcat:p50_latency_ms_5m
+        expr: |
+          1000 * histogram_quantile(
+            0.50,
+            sum by (le) (
+              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+            )
+          )
+
+      - record: smartcat:avg_confidence_5m
+        expr: |
+          sum(rate(prediction_confidence_sum[5m]))
+          /
+          clamp_min(sum(rate(prediction_confidence_count[5m])), 1e-9)
+
+      - record: smartcat:low_confidence_ratio_5m
+        expr: |
+          sum(rate(prediction_confidence_bucket{le="0.4"}[5m]))
+          /
+          clamp_min(sum(rate(prediction_confidence_count[5m])), 1e-9)
+
+      - record: smartcat:top1_acceptance_1h
+        expr: |
+          sum(increase(feedback_match_total[1h]))
+          /
+          clamp_min(sum(increase(feedback_total[1h])), 1e-9)
+
+      - record: smartcat:top3_acceptance_1h
+        expr: |
+          sum(increase(feedback_top3_match_total[1h]))
+          /
+          clamp_min(sum(increase(feedback_total[1h])), 1e-9)
+
+      - record: smartcat:data_quality_pass_min
+        expr: |
+          min(actual_data_quality_pass)
+
   - name: smartcat-serving-rollout
     rules:
       - alert: SmartcatServingHighP95Latency

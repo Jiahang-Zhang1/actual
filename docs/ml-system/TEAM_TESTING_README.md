@@ -54,7 +54,8 @@ account import flow.
 | Serving monitor summary | http://127.0.0.1:8000/monitor/summary | Current model and system behavior |
 | Serving rollout decision | http://127.0.0.1:8000/monitor/decision | Promotion/rollback recommendation |
 | Prometheus | http://127.0.0.1:9090 | Metrics query UI |
-| Grafana | http://127.0.0.1:3000 | Dashboards, login `admin / admin` |
+| Grafana overview | http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview | System dashboard, login `admin / admin` |
+| Grafana home | http://127.0.0.1:3000 | Dashboard index |
 
 ## 4. Test The Actual User Flow
 
@@ -206,6 +207,7 @@ actual_data_quality_metric
 
 In Grafana, check dashboards for:
 
+- system overview and service health
 - serving request volume
 - latency and error rate
 - prediction confidence
@@ -271,6 +273,7 @@ serving/app/main.py
 serving/app/runtime.py
 serving/tools/execute_rollout_action.py
 serving/monitoring/prometheus-alerts.yml
+serving/monitoring/grafana/dashboards/system_overview.json
 serving/monitoring/grafana/dashboards/data_quality_monitoring.json
 ```
 
