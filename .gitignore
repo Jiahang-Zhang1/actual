@@ -96,6 +96,8 @@ actual.config.js
 # Smart transaction categorization local artifacts
 artifacts/test-data/
 artifacts/test-rollout/
+artifacts/chameleon/
+.venv-chameleon/
 serving/.env
 serving/runtime/
 serving/.pytest_cache/

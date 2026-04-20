@@ -2,6 +2,18 @@
 
 ## Local Final Demo
 
+Fresh Chameleon VM:
+
+```bash
+bash bootstrap_chameleon.sh
+```
+
+The bootstrap script installs Docker/Compose, Node 22/Yarn, Python runtime
+dependencies, starts the local service stack, generates test traffic, and prints
+the service URLs.
+
+Existing development machine:
+
 ```bash
 bash scripts/final_project_test.sh
 ```
