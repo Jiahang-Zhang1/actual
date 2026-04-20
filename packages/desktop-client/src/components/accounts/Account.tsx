@@ -259,7 +259,11 @@ type MlPrediction = {
   predicted_category_id: string;
   confidence: number;
   top_categories_json?: string;
-  top_categories?: Array<{ category_id: string; score: number }>;
+  top_categories?: Array<{
+    category_id: string;
+    score: number;
+    category_name?: string;
+  }>;
 };
 
 type AccountInternalState = {
@@ -349,13 +353,16 @@ class AccountInternal extends PureComponent<
   getCategoryCandidates = (): CategoryEntity[] =>
     this.props.categoryGroups.flatMap(group => group.categories ?? []);
 
-  resolveMlCategoryId = (categoryIdOrName: string) => {
+  resolveMlCategory = (categoryIdOrName: string) => {
     const categories = this.getCategoryCandidates();
     const exactIdMatch = categories.find(
       category => category.id === categoryIdOrName,
     );
     if (exactIdMatch) {
-      return exactIdMatch.id;
+      return {
+        categoryId: exactIdMatch.id,
+        categoryName: exactIdMatch.name,
+      };
     }
 
     const normalizedPrediction = this.normalizeCategoryName(categoryIdOrName);
@@ -364,12 +371,22 @@ class AccountInternal extends PureComponent<
         this.normalizeCategoryName(category.name) === normalizedPrediction,
     );
     if (exactNameMatch) {
-      return exactNameMatch.id;
+      return {
+        categoryId: exactNameMatch.id,
+        categoryName: exactNameMatch.name,
+      };
     }
 
-    // Keep the original label when the budget does not contain a matching
-    // category yet, so the UI can still explain the model output.
-    return categoryIdOrName;
+    // Keep the model label for display even if Actual has not mapped it to a
+    // budget category yet; this prevents internal ids from leaking into the UI.
+    return {
+      categoryId: categoryIdOrName,
+      categoryName: categoryIdOrName,
+    };
+  };
+
+  resolveMlCategoryId = (categoryIdOrName: string) => {
+    return this.resolveMlCategory(categoryIdOrName).categoryId;
   };
 
   normalizeMlPredictionCategories = (
@@ -381,10 +398,14 @@ class AccountInternal extends PureComponent<
 
     const topCategories = this.getTopCategories(prediction)
       .slice(0, 3)
-      .map(item => ({
-        ...item,
-        category_id: this.resolveMlCategoryId(item.category_id),
-      }));
+      .map(item => {
+        const resolved = this.resolveMlCategory(item.category_id);
+        return {
+          ...item,
+          category_id: resolved.categoryId,
+          category_name: resolved.categoryName,
+        };
+      });
 
     if (topCategories.length === 0) {
       return null;

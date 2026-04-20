@@ -512,14 +512,33 @@ function HeaderCell({
 
 type MlSuggestion = {
   confidence: number;
-  topCategories: Array<{ category_id: string; score: number }>;
+  topCategories: Array<{
+    category_id: string;
+    score: number;
+    category_name?: string;
+  }>;
 };
 
 function getCategoryDisplayName(
   categoryGroups: CategoryGroupEntity[],
   categoryId: string,
+  suggestion?: MlSuggestion | null,
 ) {
-  return getCategoriesById(categoryGroups)[categoryId]?.name || categoryId;
+  const categoryName = getCategoriesById(categoryGroups)[categoryId]?.name;
+  if (categoryName) {
+    return categoryName;
+  }
+
+  const matchingSuggestion = suggestion?.topCategories.find(
+    item => item.category_id === categoryId,
+  );
+  if (matchingSuggestion?.category_name) {
+    return matchingSuggestion.category_name;
+  }
+
+  // Imported income/deposit rows can carry an Actual category id before the
+  // visible category cache can resolve it; show the model label instead of a raw UUID.
+  return suggestion?.topCategories[0]?.category_name || categoryId;
 }
 
 function getCompactCategoryName(categoryName: string) {
@@ -564,6 +583,7 @@ function AIPredictionsCell({
   const fullCategoryName = getCategoryDisplayName(
     categoryGroups,
     topCategory.category_id,
+    suggestion,
   );
   const categoryName = getCompactCategoryName(fullCategoryName);
   const isSelected = selectedCategoryId === topCategory.category_id;
@@ -667,6 +687,7 @@ function AITopThreeCell({
         const fullCategoryName = getCategoryDisplayName(
           categoryGroups,
           item.category_id,
+          suggestion,
         );
         const categoryName = getCompactCategoryName(fullCategoryName);
         const isSelected = selectedCategoryId === item.category_id;
@@ -1478,6 +1499,12 @@ const Transaction = memo(function Transaction({
     userSelectedMlCategoryId || topPredictedCategoryId || null;
   const effectiveCategoryId =
     userSelectedMlCategoryId || categoryId || topPredictedCategoryId || null;
+  const formatCategoryCellValue = (value: string | null | undefined) =>
+    value
+      ? getCategoryDisplayName(categoryGroups, value, mlSuggestion)
+      : transaction.id
+        ? t('Categorize')
+        : '';
 
   const valueStyle = added ? { fontWeight: 600 } : null;
   const backgroundFocus = focusedField === 'select';
@@ -2018,13 +2045,7 @@ const Transaction = memo(function Transaction({
             width="flex"
             textAlign="flex"
             value={effectiveCategoryId}
-            formatter={value =>
-              value
-                ? (getCategoriesById(categoryGroups)[value]?.name ?? value)
-                : transaction.id
-                  ? t('Categorize')
-                  : ''
-            }
+            formatter={formatCategoryCellValue}
             exposed={focusedField === 'category'}
             onExpose={name => !isPreview && onEdit(id, name)}
             unexposedContent={({ value: cellValue }) => (
