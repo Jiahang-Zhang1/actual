@@ -2086,7 +2086,7 @@ const Transaction = memo(function Transaction({
                         : valueStyle),
                     }}
                   >
-                    {cellValue}
+                    {formatCategoryCellValue(cellValue)}
                   </Text>
                 </View>
               </View>
