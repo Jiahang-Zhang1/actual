@@ -1232,7 +1232,115 @@ kubectl kustomize k8s/ml-system/overlays/canary
 kubectl kustomize k8s/ml-system/overlays/production
 ```
 
-## 15. What Needs Environment-Specific Setup On Chameleon
+## 15. Current Coverage And Remaining Gaps
+
+This section is the short rubric status snapshot for the team. It separates
+what is already implemented in this branch from what still needs deployment
+evidence or small follow-up work before the final Chameleon run.
+
+### Already Implemented
+
+| Requirement | Current implementation | Evidence |
+| --- | --- | --- |
+| Feature inside Actual user flow | Account tables show `AI Suggestion` and `All Top-3`; users can select any candidate and update the category | `packages/desktop-client/src/components/accounts/Account.tsx`, `packages/desktop-client/src/components/transactions/TransactionsTable.tsx` |
+| Frontend to serving inference | Actual core calls `/predict_batch` first and supports `/predict` fallback | `packages/loot-core/src/server/ml/service.ts`, `packages/loot-core/src/server/ml/app.ts` |
+| Feedback capture | User category choices are stored in `ml_feedback` and mirrored to serving `/feedback` | `packages/loot-core/src/server/ml/store.ts`, `serving/app/main.py` |
+| Serving monitoring | Serving exposes model output metrics, latency/error metrics, feedback metrics, data-quality metrics, and `/monitor/summary` | `serving/app/main.py`, `serving/app/config.py` |
+| Promotion/rollback decision endpoint | `/monitor/decision` returns `hold`, `promote_candidate`, or `rollback_active` using traffic, latency, error-rate, and feedback thresholds | `serving/app/main.py` |
+| Rollout trigger runner | Serving-owned trigger reads `/monitor/decision`, runs promotion or rollback, and can reload the deployed model | `serving/tools/execute_rollout_action.py` |
+| Training/evaluation gate | Challenger must pass Top-3 accuracy and macro-F1 gates and must not underperform the current champion | `training/train_model.py`, `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py` |
+| Data quality checks | Ingestion, training-set, and online-drift checks exist and can post status into serving | `data/data_quality_check.py`, `k8s/ml-system/base/data-quality-cronjob.yaml` |
+| Local full-stack test | One script generates import data, starts serving/monitoring, sends traffic, posts data quality, simulates rollout, and starts Actual | `scripts/final_project_test.sh` |
+| Fresh Chameleon bootstrap | One root script installs Docker, Node/Yarn, Python deps, starts services, and prints URLs | `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh` |
+| K8s environment split | Staging, canary, and production overlays exist | `k8s/ml-system/overlays/staging/`, `k8s/ml-system/overlays/canary/`, `k8s/ml-system/overlays/production/` |
+| DevOps health/scaling | Serving has readiness/liveness probes and HPA; Prometheus/Grafana manifests exist | `k8s/ml-system/base/serving.yaml`, `k8s/ml-system/base/monitoring.yaml` |
+| Safeguarding mechanisms | Top-3 transparency, user override, feedback accountability, privacy-aware serving logs, rollback robustness | `docs/ml-system/SAFEGUARDING.md` |
+
+### Frequent Gated Promotion
+
+The intended model update policy is frequent evaluation, gated promotion, and
+fast rollback rather than blind frequent replacement.
+
+Implemented cadence:
+
+```text
+staging: validates wiring with low thresholds
+canary: retrain/evaluate every 3 hours
+production: conservative retrain/evaluate every 12 hours
+rollout decision: serving-owned trigger checks every 15 minutes
+```
+
+Evidence:
+
+```text
+k8s/ml-system/overlays/staging/kustomization.yaml
+k8s/ml-system/overlays/canary/kustomization.yaml
+k8s/ml-system/overlays/production/kustomization.yaml
+k8s/ml-system/base/training-pipeline-cronjob.yaml
+k8s/ml-system/base/rollout-decision-cronjob.yaml
+serving/tools/execute_rollout_action.py
+serving/app/main.py
+```
+
+Promotion requires:
+
+```text
+enough candidate request volume
+enough candidate feedback volume
+p95 latency below promotion threshold
+error rate below promotion threshold
+Top-1 acceptance above promotion threshold
+Top-3 acceptance above promotion threshold
+offline Top-3 accuracy >= 0.70
+offline macro F1 >= 0.55
+challenger metric >= champion metric
+```
+
+Rollback triggers:
+
+```text
+production p95 latency above threshold
+production 5xx/error rate above threshold
+production Top-1 acceptance below threshold
+production Top-3 acceptance below threshold
+```
+
+### Remaining Gaps Before Final Freeze
+
+| Gap | Why it matters | Recommended next step |
+| --- | --- | --- |
+| K8s Actual image may not include this branch's frontend/core changes | The current K8s manifest references `actualbudget/actual-sync:latest`; final Kubernetes demo must run the modified Actual UI with prediction columns | Build and push a custom Actual image from this branch, then update `k8s/ml-system/base/actual-sync.yaml` or split web/sync services with the custom image |
+| K8s Grafana/Prometheus config is lighter than local Compose | Local Compose has full dashboard provisioning and alert rules; K8s manifest currently has basic Prometheus/Grafana setup | Mount `serving/monitoring/prometheus-alerts.yml` and Grafana dashboard JSONs through K8s ConfigMaps |
+| Training CronJob still uses synthetic bootstrap as a fallback path | Rubric prefers production data -> feedback -> retraining, not only synthetic data | Make `scripts/run_mlops_pipeline.py` prefer feedback-built datasets from `training/build_training_set.py`, and use synthetic data only when feedback volume is too small |
+| MLflow tracking exists but registry evidence is not fully operationalized | Training logs MLflow runs, but final evidence should show where runs/artifacts are tracked and which model passed gates | Configure shared `MLFLOW_TRACKING_URI`, store run id in promotion decisions, and register only promoted models |
+| Chameleon K8s needs real run evidence | Manifests render, but final grading will expect the system running on Chameleon | Apply staging/canary/production overlays, capture pods/services/CronJobs/logs, and record Grafana/Prometheus/video evidence |
+| Data-quality CronJob paths need production PVC data | The CronJob expects files under `/workspace/artifacts/data/`; those must exist in the shared PVC | Ensure pipeline writes canonical train/val/online feature files to those paths, or update the CronJob to use pipeline output paths |
+| Alerting lacks notification routing | Prometheus rules exist, but there is no Alertmanager notification path in K8s | For final polish, add Alertmanager or document dashboard-based alert review if notification setup is out of scope |
+
+### Recommended Final Evidence To Collect
+
+Before the implementation freeze, collect these artifacts for the report/video:
+
+```bash
+kubectl get pods -A
+kubectl get svc -A
+kubectl get cronjobs -A
+kubectl get jobs -n actual-ml-canary
+kubectl get jobs -n actual-ml-production
+kubectl logs -n actual-ml-canary job/<latest-ml-retrain-job-name> --tail=200
+kubectl logs -n actual-ml-production job/<latest-rollout-decision-job-name> --tail=200
+curl -s http://127.0.0.1:8000/monitor/summary | jq
+curl -s http://127.0.0.1:8000/monitor/decision | jq
+```
+
+Also capture:
+
+- Actual account table showing `Category`, `AI Suggestion`, and `All Top-3`.
+- Grafana system overview with request rate, latency, error rate, confidence, feedback, and data-quality panels.
+- Prometheus query results for `feedback_total`, `prediction_confidence`, and `actual_data_quality_pass`.
+- `artifacts/archive/last_decision.json` or the K8s PVC equivalent after a promotion/rollback simulation.
+
+## 16. What Needs Environment-Specific Setup On Chameleon
 
 The repository contains the integrated code, manifests, and automation hooks.
 Before a final Chameleon production-style run, the team still needs to confirm
