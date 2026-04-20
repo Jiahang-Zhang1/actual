@@ -1,0 +1,15 @@
+.git
+.github
+.gitignore
+node_modules
+**/node_modules
+dist
+build
+coverage
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.DS_Store
