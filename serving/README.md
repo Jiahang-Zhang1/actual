@@ -1238,6 +1238,31 @@ This section is the short rubric status snapshot for the team. It separates
 what is already implemented in this branch from what still needs deployment
 evidence or small follow-up work before the final Chameleon run.
 
+### Course Lab Alignment
+
+This branch follows the same system shape as the course labs, but it currently
+uses a lighter implementation for some platform pieces. The table below maps
+the course lab pattern to this repository so the team can explain which parts
+are already equivalent and which parts should be upgraded if time allows.
+
+| Course lab pattern | What the lab emphasizes | Current project mapping | Status |
+| --- | --- | --- | --- |
+| MLOps Pipeline on Chameleon | `tf/`, `ansible/`, `k8s/platform`, `k8s/staging`, `k8s/canary`, `k8s/production`, and `workflows/` for lifecycle automation | We have `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh`, `k8s/ml-system/base`, and `k8s/ml-system/overlays/staging|canary|production` | Functionally close, but not full course-style IaC/GitOps |
+| MLOps lifecycle workflows | Training builds a candidate, deploys to staging, tests staging, promotes to canary, then promotes or rolls back production | `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `serving/tools/execute_rollout_action.py`, K8s CronJobs | Implemented as Python scripts, GitHub Actions, and CronJobs instead of Argo Workflows |
+| MLflow tracking and registry | MLflow runs as shared platform service with Postgres metadata and MinIO/S3 artifacts | `training/train_model.py` logs to MLflow when `MLFLOW_TRACKING_URI` is configured | Partially implemented; shared MLflow/Postgres/MinIO service should be added for final Chameleon evidence |
+| Serving system lab | FastAPI inference service exposes `/predict`, batch-style serving, health checks, model artifact loading, and performance testing | `serving/app/main.py`, `serving/app/backends/`, `serving/tools/benchmark_http.py`, `serving/tools/benchmark_arrivals.py` | Implemented |
+| Online evaluation lab | FastAPI exposes `/metrics`; Prometheus scrapes it; Grafana shows operational and prediction behavior | `serving/app/main.py`, `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, Grafana dashboards | Implemented locally; K8s should mount the same dashboard/rule configs |
+| Feedback-loop lab | Save production predictions, collect explicit user feedback, sample low-confidence or flagged items, and feed labels into retraining | Actual Top-3 clicks record feedback in `ml_feedback` and serving `/feedback`; `data/feedback_collector.py` and `training/build_training_set.py` support the retraining path | Implemented for user feedback; random/low-confidence sampling is documented as a possible extension |
+| Data quality and drift | Check data at ingestion, training-set build time, and online production drift | `data/data_quality_check.py` plus `k8s/ml-system/base/data-quality-cronjob.yaml` | Implemented, but final Chameleon PVC paths must be verified with real pipeline output |
+| Platform services | Shared platform services should avoid duplicated infrastructure across roles | Local Compose has one serving/Prometheus/Grafana stack; K8s overlays currently instantiate monitoring per environment | Acceptable for local demo; final K8s should ideally split shared `platform` namespace from app environments |
+
+Practical refactor decision:
+
+- Do not rewrite the project into full Terraform/Ansible/Argo tonight; it is a separate platform migration.
+- Keep the current working Compose/Kustomize/CronJob system as the demo path.
+- If the team has more time, migrate the K8s layout toward the course `platform + staging + canary + production + workflows` shape.
+- The highest-value upgrade is adding a shared platform namespace with MLflow, Postgres, MinIO, Prometheus, Grafana, and traffic routing.
+
 ### Already Implemented
 
 | Requirement | Current implementation | Evidence |
@@ -1309,6 +1334,9 @@ production Top-3 acceptance below threshold
 
 | Gap | Why it matters | Recommended next step |
 | --- | --- | --- |
+| No full Terraform/Ansible infrastructure path yet | The course MLOps lab provisions Chameleon resources with Terraform and configures Kubernetes/Argo with Ansible; our bootstrap script is easier but less lab-like | Either add `tf/` and `ansible/` from the team's Chameleon setup, or explicitly document that the team is using a manual cluster plus bootstrap script |
+| No Argo Workflows/ArgoCD lifecycle yet | The course lifecycle path uses Argo Workflows for train/build/deploy/test/promote and ArgoCD for environment sync | Convert the existing CronJobs and GitHub workflow into Argo `WorkflowTemplate`s if final grading expects lab-style GitOps evidence |
+| Shared platform namespace is not separated yet | The course lab keeps accessory services in `k8s/platform` and app versions in staging/canary/production; our base repeats monitoring with each overlay | Add `k8s/ml-system/platform` for MLflow, MinIO/Postgres, Prometheus, Grafana, and gateway/traffic routing |
 | K8s Actual image may not include this branch's frontend/core changes | The current K8s manifest references `actualbudget/actual-sync:latest`; final Kubernetes demo must run the modified Actual UI with prediction columns | Build and push a custom Actual image from this branch, then update `k8s/ml-system/base/actual-sync.yaml` or split web/sync services with the custom image |
 | K8s Grafana/Prometheus config is lighter than local Compose | Local Compose has full dashboard provisioning and alert rules; K8s manifest currently has basic Prometheus/Grafana setup | Mount `serving/monitoring/prometheus-alerts.yml` and Grafana dashboard JSONs through K8s ConfigMaps |
 | Training CronJob still uses synthetic bootstrap as a fallback path | Rubric prefers production data -> feedback -> retraining, not only synthetic data | Make `scripts/run_mlops_pipeline.py` prefer feedback-built datasets from `training/build_training_set.py`, and use synthetic data only when feedback volume is too small |
