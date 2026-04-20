@@ -141,6 +141,56 @@ k8s/ml-system/overlays/canary/
 k8s/ml-system/overlays/production/
 ```
 
+## Actual Budget K8s Image For DevOps
+
+The modified Actual Budget application is packaged with the repository-root
+`Dockerfile.sync-k8s`. This image is separate from the Python serving image. It
+contains the compiled Actual web frontend, the sync/server backend, production
+Node dependencies, and a writable `/data` directory for SQLite/server files.
+
+Use the helper below when building for Chameleon Kubernetes nodes. Chameleon
+`m1.large` nodes are `linux/amd64`, so keep the platform explicit when building
+from an Apple Silicon laptop.
+
+```bash
+IMAGE=ghcr.io/<org-or-user>/actual-sync \
+TAG=serving-$(git rev-parse --short HEAD) \
+PLATFORM=linux/amd64 \
+serving/tools/build_actual_sync_image.sh push
+```
+
+If there is no registry login available, build a tarball and import it on each
+Kubernetes node:
+
+```bash
+IMAGE=actual-smartcat/actual-sync \
+TAG=serving-$(git rev-parse --short HEAD) \
+PLATFORM=linux/amd64 \
+serving/tools/build_actual_sync_image.sh tar
+```
+
+The image exposes port `5006` and sets these safe defaults:
+
+```text
+ACTUAL_PORT=5006
+ACTUAL_HOSTNAME=0.0.0.0
+ACTUAL_DATA_DIR=/data
+ACTUAL_ML_SERVICE_URL=http://smartcat-serving:8000
+ACTUAL_ML_SERVICE_TIMEOUT_MS=2500
+```
+
+Kubernetes can override the ML service URL through the `actual-ml-config`
+ConfigMap. The current integrated manifests already point Actual at the
+`smartcat-serving` service.
+
+After pushing the image, update the K8s image reference:
+
+```bash
+kubectl -n actual-ml-production set image \
+  deployment/actual-sync \
+  actual-sync=ghcr.io/<org-or-user>/actual-sync:serving-<sha>
+```
+
 ## 3. Local Service URLs
 
 | Service | URL | Purpose |
