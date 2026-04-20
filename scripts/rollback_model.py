@@ -65,12 +65,47 @@ def main():
     archive_dir = Path(args.archive_dir)
     deployed_dir = Path(args.deployed_dir)
 
+    if not archive_dir.exists():
+        # A fresh deployment may request rollback before the first promotion has
+        # archived a champion model. Treat this as a safe no-op for automation.
+        print(
+            json.dumps(
+                {
+                    "rolled_back_to": None,
+                    "rollback_skipped": True,
+                    "reason": f"archive directory does not exist: {archive_dir}",
+                    "mlflow_alias": {
+                        "updated": False,
+                        "reason": "no archived model available",
+                    },
+                },
+                indent=2,
+            )
+        )
+        return
+
     candidates = sorted(
         [path for path in archive_dir.iterdir() if path.is_dir()],
         reverse=True,
     )
     if not candidates:
-        raise SystemExit("No archived model directories were found.")
+        # Keep scheduled rollback jobs idempotent when no prior model is
+        # available; monitoring still records why rollback was considered.
+        print(
+            json.dumps(
+                {
+                    "rolled_back_to": None,
+                    "rollback_skipped": True,
+                    "reason": f"no archived model directories were found in: {archive_dir}",
+                    "mlflow_alias": {
+                        "updated": False,
+                        "reason": "no archived model available",
+                    },
+                },
+                indent=2,
+            )
+        )
+        return
 
     latest = candidates[0]
     metadata = load_metadata(latest)
