@@ -22,7 +22,7 @@ as bank transactions. This avoids relying on the demo budget while still
 testing the normal user flow.
 
 For the full team walkthrough, see
-`docs/ml-system/TEAM_TESTING_README.md`.
+`serving/TEAM_TESTING_README.md`.
 
 ## Automated Pipeline
 
