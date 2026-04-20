@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -45,13 +47,16 @@ def read_frame(path: str | Path) -> pd.DataFrame:
 
 
 def result(stage: str, passed: bool, metrics: dict[str, Any], issues: list[str]) -> dict[str, Any]:
+    checked_at = datetime.now(timezone.utc).isoformat()
     return {
         "stage": stage,
+        "check_type": stage,
         "passed": passed,
         "issue_count": len(issues),
         "issues": issues,
         "metrics": metrics,
-        "checked_at": datetime.now(timezone.utc).isoformat(),
+        "checked_at": checked_at,
+        "timestamp": checked_at,
     }
 
 
@@ -95,13 +100,16 @@ def check_ingestion_quality(filepath: str | Path) -> dict[str, Any]:
     return result("ingestion", not issues, metrics, issues)
 
 
-def check_training_set_quality(train_path: str | Path, eval_path: str | Path) -> dict[str, Any]:
+def check_training_set_quality(train_path: str | Path, eval_path: str | Path | None = None) -> dict[str, Any]:
     train_df = read_frame(train_path)
-    eval_df = read_frame(eval_path)
+    eval_df = read_frame(eval_path) if eval_path else pd.DataFrame()
     issues: list[str] = []
 
     required_cols = {"transaction_description", "category"}
-    for name, df in {"train": train_df, "eval": eval_df}.items():
+    dataframes = {"train": train_df}
+    if eval_path:
+        dataframes["eval"] = eval_df
+    for name, df in dataframes.items():
         missing = sorted(required_cols - set(df.columns))
         if missing:
             issues.append(f"{name} missing columns: {missing}")
@@ -109,7 +117,13 @@ def check_training_set_quality(train_path: str | Path, eval_path: str | Path) ->
     overlap_ratio = 0.0
     min_label_ratio = 0.0
     train_ratio = 0.0
-    if not issues:
+    if "category" in train_df.columns:
+        label_distribution = train_df["category"].value_counts(normalize=True)
+        min_label_ratio = float(label_distribution.min()) if not label_distribution.empty else 0.0
+        if min_label_ratio < 0.01:
+            issues.append(f"severe class imbalance, min label ratio={min_label_ratio:.3f}")
+
+    if eval_path and not issues:
         key_columns = [
             column
             for column in ["transaction_description", "category", "transaction_date", "amount"]
@@ -123,15 +137,12 @@ def check_training_set_quality(train_path: str | Path, eval_path: str | Path) ->
         if overlap_ratio > 0.60:
             issues.append(f"possible leakage, train/eval overlap={overlap_ratio:.3f}")
 
-        label_distribution = train_df["category"].value_counts(normalize=True)
-        min_label_ratio = float(label_distribution.min()) if not label_distribution.empty else 0.0
-        if min_label_ratio < 0.01:
-            issues.append(f"severe class imbalance, min label ratio={min_label_ratio:.3f}")
-
         total = len(train_df) + len(eval_df)
         train_ratio = len(train_df) / max(total, 1)
         if train_ratio < 0.65 or train_ratio > 0.90:
             issues.append(f"unexpected train/eval split ratio={train_ratio:.3f}")
+    elif not eval_path:
+        train_ratio = 1.0
 
     metrics = {
         "train_row_count": int(len(train_df)),
@@ -206,21 +217,29 @@ def post_result(url: str | None, payload: dict[str, Any]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    # Support the data branch's legacy no-argument behavior while keeping the
+    # serving branch's explicit subcommands for Kubernetes CronJobs.
+    if len(sys.argv) == 1:
+        sys.argv.append("all")
+
     parser = argparse.ArgumentParser(description="Run Actual ML data quality checks.")
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_ingest = sub.add_parser("ingestion")
     p_ingest.add_argument("--input", required=True)
 
-    p_training = sub.add_parser("training-set")
+    p_training = sub.add_parser("training-set", aliases=["training_set"])
     p_training.add_argument("--train", required=True)
-    p_training.add_argument("--eval", required=True)
+    p_training.add_argument("--eval", "--eval-input", dest="eval_path")
 
-    p_drift = sub.add_parser("online-drift")
+    p_drift = sub.add_parser("online-drift", aliases=["online_drift"])
     p_drift.add_argument("--reference", required=True)
-    p_drift.add_argument("--inference", required=True)
+    p_drift.add_argument("--inference", "--input", dest="inference", required=True)
 
-    for command in [p_ingest, p_training, p_drift]:
+    p_all = sub.add_parser("all")
+    p_all.add_argument("--data-path", default=os.getenv("DATA_PATH", "/home/cc"))
+
+    for command in [p_ingest, p_training, p_drift, p_all]:
         command.add_argument("--output-json")
         command.add_argument("--output-prom")
         command.add_argument("--post-url")
@@ -233,16 +252,37 @@ def main() -> None:
     args = parse_args()
     if args.command == "ingestion":
         payload = check_ingestion_quality(args.input)
-    elif args.command == "training-set":
-        payload = check_training_set_quality(args.train, args.eval)
-    elif args.command == "online-drift":
+    elif args.command in {"training-set", "training_set"}:
+        payload = check_training_set_quality(args.train, args.eval_path)
+    elif args.command in {"online-drift", "online_drift"}:
         payload = check_inference_drift(args.reference, args.inference)
+    elif args.command == "all":
+        data_path = Path(args.data_path)
+        checks = [
+            check_ingestion_quality(data_path / "transactions_clean_v1.parquet"),
+            check_training_set_quality(data_path / "train_data.csv", data_path / "eval_data.csv"),
+            check_inference_drift(
+                data_path / "transactions_clean_v1.parquet",
+                data_path / "online_features_output.csv",
+            ),
+        ]
+        payload = result(
+            "all",
+            all(check["passed"] for check in checks),
+            {check["stage"]: check["metrics"] for check in checks},
+            [issue for check in checks for issue in check["issues"]],
+        )
+        payload["checks"] = checks
     else:
         raise ValueError(args.command)
 
     write_json(args.output_json, payload)
     write_prometheus(args.output_prom, payload)
-    post_result(args.post_url, payload)
+    if args.command == "all" and args.post_url:
+        for check in payload["checks"]:
+            post_result(args.post_url, check)
+    else:
+        post_result(args.post_url, payload)
     print(json.dumps(payload, indent=2))
 
     if args.fail_on_error and not payload["passed"]:
