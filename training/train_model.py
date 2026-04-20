@@ -9,12 +9,13 @@ import joblib
 import mlflow
 import mlflow.sklearn
 import pandas as pd
+from sklearn.compose import ColumnTransformer
 from mlflow.tracking import MlflowClient
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, f1_score
-from sklearn.pipeline import FeatureUnion, Pipeline
-from sklearn.preprocessing import FunctionTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
 
 
 def read_dataset(path: str) -> pd.DataFrame:
@@ -73,20 +74,36 @@ def build_feature_text(row: pd.Series) -> str:
     return " ".join(part for part in parts if part)
 
 
-def build_feature_series(df: pd.DataFrame):
-    return df.apply(build_feature_text, axis=1)
+def _string_column(df: pd.DataFrame, column: str, default: str) -> pd.Series:
+    if column not in df:
+        return pd.Series([default] * len(df), index=df.index, dtype=str)
+    return df[column].fillna(default).astype(str)
+
+
+def build_model_frame(df: pd.DataFrame) -> pd.DataFrame:
+    # Keep the trained artifact ONNX-convertible by doing feature text assembly
+    # before the sklearn pipeline. The online serving adapter applies the same
+    # contract before calling joblib/ONNX variants.
+    return pd.DataFrame(
+        {
+            "transaction_description": df.apply(build_feature_text, axis=1),
+            "country": _string_column(df, "country", "US"),
+            "currency": _string_column(df, "currency", "USD"),
+        }
+    )
 
 
 def build_pipeline(max_word_features: int, max_char_features: int, c_value: float) -> Pipeline:
+    # max_char_features is retained for CLI compatibility; the deployed
+    # training artifact uses ONNX-friendly word TF-IDF plus categorical inputs.
     return Pipeline(
         steps=[
-            ("feature_text", FunctionTransformer(build_feature_series, validate=False)),
             (
-                "vectorizer",
-                FeatureUnion(
-                    transformer_list=[
+                "preprocessor",
+                ColumnTransformer(
+                    transformers=[
                         (
-                            "word",
+                            "transaction_description_word_tfidf",
                             TfidfVectorizer(
                                 analyzer="word",
                                 ngram_range=(1, 2),
@@ -94,18 +111,14 @@ def build_pipeline(max_word_features: int, max_char_features: int, c_value: floa
                                 min_df=1,
                                 sublinear_tf=True,
                             ),
+                            "transaction_description",
                         ),
                         (
-                            "char",
-                            TfidfVectorizer(
-                                analyzer="char_wb",
-                                ngram_range=(3, 5),
-                                max_features=max_char_features,
-                                min_df=1,
-                                sublinear_tf=True,
-                            ),
+                            "categorical",
+                            OneHotEncoder(handle_unknown="ignore"),
+                            ["country", "currency"],
                         ),
-                    ]
+                    ],
                 ),
             ),
             (
@@ -135,8 +148,9 @@ def top_k_accuracy(probabilities, labels, classes, k: int) -> float:
 
 
 def evaluate_model(model, df: pd.DataFrame) -> dict:
-    probabilities = model.predict_proba(df)
-    predictions = model.predict(df)
+    frame = build_model_frame(df)
+    probabilities = model.predict_proba(frame)
+    predictions = model.predict(frame)
     labels = df["category"].astype(str)
     classes = list(model.named_steps["clf"].classes_)
     return {
@@ -254,7 +268,7 @@ def main():
             max_char_features=args.max_char_features,
             c_value=args.c_value,
         )
-        model.fit(train_df, train_df["category"].astype(str))
+        model.fit(build_model_frame(train_df), train_df["category"].astype(str))
 
         val_metrics = evaluate_model(model, val_df)
         test_metrics = evaluate_model(model, test_df)

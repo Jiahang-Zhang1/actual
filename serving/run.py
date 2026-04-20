@@ -25,9 +25,10 @@ TOOLING_BASE_URL = "http://serve:8000"
 DEFAULT_ENV_EXAMPLE_CONTENT = """HOST_PORT=8000
 SERVICE_PORT=8000
 
-BACKEND_KIND=onnx_dynamic_quant
+BACKEND_KIND=auto
 MODEL_PATH=/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx
 SOURCE_MODEL_PATH=/workspace/models/source/v2_tfidf_linearsvc_model.joblib
+MODEL_BUNDLE_DIR=/workspace/runtime/deployed
 
 MODEL_VERSION=v2_tfidf_linearsvc
 TOP_K=3

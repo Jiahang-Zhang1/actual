@@ -29,9 +29,10 @@ services:
       SERVICE_HOST: 0.0.0.0
       SERVICE_PORT: ${SERVICE_PORT:-8000}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
-      BACKEND_KIND: ${BACKEND_KIND:-onnx_dynamic_quant}
+      BACKEND_KIND: ${BACKEND_KIND:-auto}
       MODEL_PATH: ${MODEL_PATH:-/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx}
       SOURCE_MODEL_PATH: ${SOURCE_MODEL_PATH:-/workspace/models/source/v2_tfidf_linearsvc_model.joblib}
+      MODEL_BUNDLE_DIR: ${MODEL_BUNDLE_DIR:-/workspace/runtime/deployed}
       MODEL_VERSION: ${MODEL_VERSION:-v2_tfidf_linearsvc}
       CODE_VERSION: ${CODE_VERSION:-dev}
       TOP_K: ${TOP_K:-3}

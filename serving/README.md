@@ -505,6 +505,7 @@ serving/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx
 serving/models/manifest.json
 serving/tools/prepare_artifacts.py
 serving/tools/benchmark_artifacts.py
+scripts/export_model_variants.py
 ```
 
 Runtime variants:
@@ -514,6 +515,54 @@ Runtime variants:
 | sklearn baseline | `baseline` | `serving/models/source/v2_tfidf_linearsvc_model.joblib` |
 | ONNX | `onnx` | `serving/models/optimized/v2_tfidf_linearsvc_model.onnx` |
 | ONNX dynamic quantization | `onnx_dynamic_quant` | `serving/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx` |
+
+Automated retraining produces the same three variants for every new challenger:
+
+```text
+model.joblib
+model.onnx
+model.dynamic_quant.onnx
+selected_model.json
+```
+
+`scripts/export_model_variants.py` owns this step. It converts the trained
+sklearn artifact to ONNX, applies ONNX Runtime dynamic quantization, benchmarks
+all three variants, checks that ONNX variants match the sklearn baseline, and
+writes `selected_model.json`.
+
+Selection policy:
+
+```text
+label_match_rate >= 0.99
+top3_match_rate >= 0.95
+then rank by lowest p95 latency
+then rank by smaller artifact size
+then prefer dynamic quantized ONNX only as a tie-breaker
+```
+
+The deployed bundle lives locally at:
+
+```text
+serving/runtime/deployed/
+```
+
+In Kubernetes it lives on the shared ML artifact PVC at:
+
+```text
+/workspace/artifacts/deployed/
+```
+
+Serving normally runs with:
+
+```text
+BACKEND_KIND=auto
+MODEL_BUNDLE_DIR=/workspace/runtime/deployed       # local Compose
+MODEL_BUNDLE_DIR=/workspace/artifacts/deployed    # Kubernetes
+```
+
+With `BACKEND_KIND=auto`, serving reads `selected_model.json` on startup and
+after `/admin/reload-model`. This lets promotion change the model version and
+the chosen artifact variant without rebuilding the container.
 
 ### 6.5 Monitoring
 
@@ -655,6 +704,7 @@ Main files:
 training/build_training_set.py
 training/train_model.py
 scripts/run_mlops_pipeline.py
+scripts/export_model_variants.py
 scripts/promote_model.py
 scripts/rollback_model.py
 scripts/simulate_promotion_rollback.py
@@ -699,6 +749,7 @@ Promotion gates:
 minimum Top-3 accuracy
 minimum macro F1
 challenger metric must be at least as good as current deployed metric
+selected serving variant must pass label/top3 parity checks against sklearn baseline
 ```
 
 Default thresholds:
@@ -706,6 +757,8 @@ Default thresholds:
 ```text
 --min-top3-accuracy 0.70
 --min-macro-f1 0.55
+variant label_match_rate >= 0.99
+variant top3_match_rate >= 0.95
 ```
 
 Rollback triggers:
@@ -1367,6 +1420,9 @@ Top-3 acceptance above promotion threshold
 offline Top-3 accuracy >= 0.70
 offline macro F1 >= 0.55
 challenger metric >= champion metric
+artifact variant label parity >= 0.99 against sklearn
+artifact variant Top-3 parity >= 0.95 against sklearn
+selected artifact has the best p95 latency among eligible variants
 ```
 
 Rollback triggers:

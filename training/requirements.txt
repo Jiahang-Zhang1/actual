@@ -1,5 +1,8 @@
 joblib
 mlflow
+onnx
+onnxruntime
 pandas
 pyarrow
 scikit-learn
+skl2onnx

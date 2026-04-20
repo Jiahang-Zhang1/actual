@@ -110,18 +110,15 @@ def check_training_set_quality(train_path: str | Path, eval_path: str | Path) ->
     min_label_ratio = 0.0
     train_ratio = 0.0
     if not issues:
-        train_keys = set(
-            zip(
-                train_df["transaction_description"].astype(str),
-                train_df["category"].astype(str),
-            )
-        )
-        eval_keys = set(
-            zip(
-                eval_df["transaction_description"].astype(str),
-                eval_df["category"].astype(str),
-            )
-        )
+        key_columns = [
+            column
+            for column in ["transaction_description", "category", "transaction_date", "amount"]
+            if column in train_df.columns and column in eval_df.columns
+        ]
+        # Repeated merchants are normal in bank transactions, so the leakage
+        # check uses exact transaction-like keys when date/amount are present.
+        train_keys = set(tuple(row) for row in train_df[key_columns].astype(str).itertuples(index=False, name=None))
+        eval_keys = set(tuple(row) for row in eval_df[key_columns].astype(str).itertuples(index=False, name=None))
         overlap_ratio = len(train_keys.intersection(eval_keys)) / max(len(eval_keys), 1)
         if overlap_ratio > 0.60:
             issues.append(f"possible leakage, train/eval overlap={overlap_ratio:.3f}")

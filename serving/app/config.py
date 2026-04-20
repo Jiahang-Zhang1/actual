@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import json
 import subprocess
 from dataclasses import dataclass
 from functools import lru_cache
@@ -32,11 +33,45 @@ def default_model_path(backend_kind: str) -> str:
     raise ValueError(f"Unsupported BACKEND_KIND={backend_kind}")
 
 
+def _resolve_bundle_selection(
+    requested_backend_kind: str,
+    fallback_model_path: str,
+    fallback_source_model_path: str,
+    fallback_model_version: str,
+    model_bundle_dir: str,
+) -> tuple[str, str, str, str]:
+    bundle_dir = Path(model_bundle_dir)
+    selection_path = bundle_dir / "selected_model.json"
+    metadata_path = bundle_dir / "metadata.json"
+    if not selection_path.exists():
+        backend_kind = "onnx_dynamic_quant" if requested_backend_kind == "auto" else requested_backend_kind
+        return backend_kind, fallback_model_path, fallback_source_model_path, fallback_model_version
+
+    # A promoted model bundle includes all variants plus selected_model.json.
+    # Serving reads it at startup/reload so promotion can change both model
+    # version and artifact variant without rebuilding the container.
+    selection = json.loads(selection_path.read_text(encoding="utf-8"))
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.exists() else {}
+    selected_variant = str(selection.get("selected_variant") or "baseline")
+    backend_kind = selected_variant if requested_backend_kind == "auto" else requested_backend_kind
+    paths = selection.get("paths", {})
+    variant_path = paths.get(backend_kind) or paths.get(selected_variant) or "model.joblib"
+    source_path = paths.get("baseline") or "model.joblib"
+    model_version = str(metadata.get("model_version") or selection.get("model_version") or fallback_model_version)
+    return (
+        backend_kind,
+        str((bundle_dir / variant_path).resolve()),
+        str((bundle_dir / source_path).resolve()),
+        model_version,
+    )
+
+
 @dataclass(frozen=True)
 class Settings:
     backend_kind: str
     model_path: str
     source_model_path: str
+    model_bundle_dir: str
     model_version: str
     code_version: str
     top_k: int
@@ -63,16 +98,28 @@ class Settings:
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    backend_kind = os.getenv("BACKEND_KIND", "onnx_dynamic_quant").strip()
-    model_path = os.getenv("MODEL_PATH", "").strip() or default_model_path(backend_kind)
+    requested_backend_kind = os.getenv("BACKEND_KIND", "onnx_dynamic_quant").strip()
+    default_backend_kind = "onnx_dynamic_quant" if requested_backend_kind == "auto" else requested_backend_kind
+    fallback_model_path = os.getenv("MODEL_PATH", "").strip() or default_model_path(default_backend_kind)
+    fallback_source_model_path = os.getenv(
+        "SOURCE_MODEL_PATH",
+        "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
+    ).strip()
+    fallback_model_version = os.getenv("MODEL_VERSION", "v2_tfidf_linearsvc").strip()
+    model_bundle_dir = os.getenv("MODEL_BUNDLE_DIR", "/workspace/runtime/deployed").strip()
+    backend_kind, model_path, source_model_path, model_version = _resolve_bundle_selection(
+        requested_backend_kind,
+        fallback_model_path,
+        fallback_source_model_path,
+        fallback_model_version,
+        model_bundle_dir,
+    )
     return Settings(
         backend_kind=backend_kind,
         model_path=model_path,
-        source_model_path=os.getenv(
-            "SOURCE_MODEL_PATH",
-            "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
-        ).strip(),
-        model_version=os.getenv("MODEL_VERSION", "v2_tfidf_linearsvc").strip(),
+        source_model_path=source_model_path,
+        model_bundle_dir=model_bundle_dir,
+        model_version=model_version,
         code_version=os.getenv("CODE_VERSION", "").strip() or _git_sha_fallback(),
         top_k=int(os.getenv("TOP_K", "3")),
         service_host=os.getenv("SERVICE_HOST", "0.0.0.0").strip(),

@@ -46,8 +46,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run retrain -> evaluate -> register/promote pipeline.")
     parser.add_argument("--workspace-dir", default="artifacts/mlops-pipeline")
     parser.add_argument("--source-training-csv", default="artifacts/test-data/synthetic_training_transactions.csv")
-    parser.add_argument("--deployed-dir", default="artifacts/deployed")
-    parser.add_argument("--archive-dir", default="artifacts/archive")
+    parser.add_argument("--deployed-dir", default="serving/runtime/deployed")
+    parser.add_argument("--archive-dir", default="serving/runtime/archive")
     parser.add_argument("--data-quality-post-url")
     parser.add_argument("--reload-url")
     parser.add_argument("--synthetic-bootstrap", action="store_true")
@@ -109,6 +109,18 @@ def main() -> None:
             str(challenger_dir),
             "--run-name",
             "automated-retrain",
+        ],
+        repo,
+    )
+
+    run(
+        [
+            sys.executable,
+            "scripts/export_model_variants.py",
+            "--model-dir",
+            str(challenger_dir),
+            "--sample-dataset",
+            str(test_csv),
         ],
         repo,
     )

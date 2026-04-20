@@ -81,15 +81,15 @@ def main():
     )
     parser.add_argument(
         "--challenger-dir",
-        default="artifacts/challenger",
+        default="artifacts/mlops-pipeline/challenger",
     )
     parser.add_argument(
         "--deployed-dir",
-        default="artifacts/deployed",
+        default="serving/runtime/deployed",
     )
     parser.add_argument(
         "--archive-dir",
-        default="artifacts/archive",
+        default="serving/runtime/archive",
     )
     parser.add_argument(
         "--min-top3-accuracy",

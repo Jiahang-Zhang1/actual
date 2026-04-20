@@ -15,9 +15,10 @@ configMapGenerator:
   - name: actual-ml-config
     literals:
       - ACTUAL_ML_SERVICE_URL=http://smartcat-serving:8000
-      - BACKEND_KIND=baseline
+      - BACKEND_KIND=auto
       - MODEL_PATH=/workspace/artifacts/deployed/model.joblib
       - SOURCE_MODEL_PATH=/workspace/artifacts/deployed/model.joblib
+      - MODEL_BUNDLE_DIR=/workspace/artifacts/deployed
       - MODEL_VERSION=v2_tfidf_linearsvc
       - TOP_K=3
       - MONITOR_WINDOW_MINUTES=60

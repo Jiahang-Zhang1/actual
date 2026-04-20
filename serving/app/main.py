@@ -474,7 +474,9 @@ def versionz() -> VersionResponse:
 def admin_reload_model() -> Dict[str, Any]:
     # Promotion and rollback jobs call this after updating the deployed model
     # artifact so serving can switch versions without manual pod restarts.
+    global settings
     reload_backend()
+    settings = get_settings()
     return {"status": "ok", "reloaded": True, "model_version": settings.model_version}
 
 

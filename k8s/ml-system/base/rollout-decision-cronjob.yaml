@@ -47,7 +47,7 @@ spec:
                 - --monitor-url
                 - http://smartcat-serving:8000/monitor/decision
                 - --challenger-dir
-                - /workspace/artifacts/challenger
+                - /workspace/artifacts/pipeline/challenger
                 - --deployed-dir
                 - /workspace/artifacts/deployed
                 - --archive-dir

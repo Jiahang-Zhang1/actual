@@ -35,5 +35,6 @@ def warmup_backend() -> None:
 
 
 def reload_backend() -> None:
+    get_settings.cache_clear()
     get_backend.cache_clear()
     warmup_backend()

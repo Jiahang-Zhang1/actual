@@ -19,7 +19,10 @@ def test_build_feature_frame_uses_expected_columns():
 
 def test_build_feature_frame_falls_back_to_merchant_text():
     frame = build_feature_frame([PredictRequest(merchant_text="NETFLIX.COM", country="US", currency="USD")])
-    assert frame.iloc[0]["transaction_description"] == "NETFLIX.COM"
+    description = frame.iloc[0]["transaction_description"]
+    assert description.startswith("netflix.com")
+    assert "country=us" in description
+    assert "currency=usd" in description
 
 
 def test_build_feature_frame_accepts_clean_description():
@@ -32,4 +35,6 @@ def test_build_feature_frame_accepts_clean_description():
             )
         ]
     )
-    assert frame.iloc[0]["transaction_description"] == "starbucks store 1458"
+    description = frame.iloc[0]["transaction_description"]
+    assert description.startswith("starbucks store 1458")
+    assert "amount_bucket=unknown" in description

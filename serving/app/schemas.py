@@ -20,6 +20,9 @@ class PredictRequest(_Model):
     amount: Optional[float] = None
     transaction_date: Optional[str] = None
     account_type: Optional[str] = None
+    account_id: Optional[str] = None
+    imported_description: Optional[str] = None
+    notes: Optional[str] = None
     description_length: Optional[int] = None
 
 

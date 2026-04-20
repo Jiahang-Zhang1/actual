@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 import subprocess
 import sys
@@ -14,9 +15,28 @@ from typing import Any
 import requests
 
 
-def run(command: list[str], cwd: Path) -> None:
+def run(command: list[str], cwd: Path, extra_env: dict[str, str] | None = None) -> None:
+    env = os.environ.copy()
+    if extra_env:
+        env.update(extra_env)
     print("$", " ".join(command), flush=True)
-    subprocess.run(command, cwd=str(cwd), check=True)
+    subprocess.run(command, cwd=str(cwd), env=env, check=True)
+
+
+def local_mlflow_env() -> dict[str, str]:
+    # The compressed demo runs from the host, so point MLflow clients at the
+    # local Compose ports while keeping the same registry names as Kubernetes.
+    return {
+        "MLFLOW_TRACKING_URI": os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"),
+        "MLFLOW_REGISTER_MODEL_NAME": os.environ.get(
+            "MLFLOW_REGISTER_MODEL_NAME",
+            "actual-smart-transaction-categorizer",
+        ),
+        "MLFLOW_PROMOTION_ALIAS": os.environ.get("MLFLOW_PROMOTION_ALIAS", "production"),
+        "MLFLOW_S3_ENDPOINT_URL": os.environ.get("MLFLOW_S3_ENDPOINT_URL", "http://127.0.0.1:9000"),
+        "AWS_ACCESS_KEY_ID": os.environ.get("AWS_ACCESS_KEY_ID", "actual-minio"),
+        "AWS_SECRET_ACCESS_KEY": os.environ.get("AWS_SECRET_ACCESS_KEY", "actual-minio-password"),
+    }
 
 
 def ensure_payload(repo: Path, batch_path: Path, training_path: Path, rows: int) -> None:
@@ -194,6 +214,7 @@ def main() -> None:
                     f"{args.serving_url}/admin/reload-model",
                 ],
                 repo,
+                extra_env=local_mlflow_env(),
             )
             append_jsonl(
                 log_path,
@@ -216,6 +237,7 @@ def main() -> None:
                     f"{args.serving_url}/admin/reload-model",
                 ],
                 repo,
+                extra_env=local_mlflow_env(),
             )
             append_jsonl(
                 log_path,
