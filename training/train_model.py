@@ -8,14 +8,16 @@ from pathlib import Path
 import joblib
 import mlflow
 import mlflow.sklearn
+import numpy as np
 import pandas as pd
-from sklearn.compose import ColumnTransformer
 from mlflow.tracking import MlflowClient
+from sklearn.compose import ColumnTransformer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, SGDClassifier
 from sklearn.metrics import accuracy_score, f1_score
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
+from sklearn.svm import LinearSVC
 
 
 def read_dataset(path: str) -> pd.DataFrame:
@@ -93,7 +95,37 @@ def build_model_frame(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def build_pipeline(max_word_features: int, max_char_features: int, c_value: float) -> Pipeline:
+def build_classifier(model_family: str, c_value: float):
+    if model_family == "logreg":
+        return LogisticRegression(
+            max_iter=1000,
+            C=c_value,
+            class_weight="balanced",
+            n_jobs=1,
+        )
+    if model_family == "linear_svm":
+        return LinearSVC(
+            max_iter=3000,
+            C=c_value,
+            class_weight="balanced",
+            random_state=42,
+        )
+    if model_family == "sgd_log":
+        return SGDClassifier(
+            loss="log_loss",
+            max_iter=1000,
+            class_weight="balanced",
+            random_state=42,
+        )
+    raise ValueError(f"Unsupported model family: {model_family}")
+
+
+def build_pipeline(
+    max_word_features: int,
+    max_char_features: int,
+    c_value: float,
+    model_family: str,
+) -> Pipeline:
     # max_char_features is retained for CLI compatibility; the deployed
     # training artifact uses ONNX-friendly word TF-IDF plus categorical inputs.
     return Pipeline(
@@ -121,15 +153,7 @@ def build_pipeline(max_word_features: int, max_char_features: int, c_value: floa
                     ],
                 ),
             ),
-            (
-                "clf",
-                LogisticRegression(
-                    max_iter=1000,
-                    C=c_value,
-                    class_weight="balanced",
-                    n_jobs=1,
-                ),
-            ),
+            ("clf", build_classifier(model_family, c_value)),
         ]
     )
 
@@ -147,9 +171,36 @@ def top_k_accuracy(probabilities, labels, classes, k: int) -> float:
     return hits / total if total else 0.0
 
 
+def _softmax_rows(matrix: np.ndarray) -> np.ndarray:
+    matrix = np.asarray(matrix, dtype=float)
+    if matrix.ndim == 1:
+        matrix = np.stack([-matrix, matrix], axis=1)
+    matrix = matrix - np.max(matrix, axis=1, keepdims=True)
+    exp_matrix = np.exp(matrix)
+    denom = np.sum(exp_matrix, axis=1, keepdims=True)
+    denom[denom == 0.0] = 1.0
+    return exp_matrix / denom
+
+
+def model_score_matrix(model, frame: pd.DataFrame) -> np.ndarray:
+    # Candidate families expose either calibrated probabilities or raw margins.
+    # Convert raw margins to comparable probabilities so Top-K gates are stable.
+    if hasattr(model, "predict_proba"):
+        return np.asarray(model.predict_proba(frame), dtype=float)
+    if hasattr(model, "decision_function"):
+        return _softmax_rows(np.asarray(model.decision_function(frame), dtype=float))
+    clf = model.named_steps["clf"]
+    transformed = model.named_steps["preprocessor"].transform(frame)
+    if hasattr(clf, "predict_proba"):
+        return np.asarray(clf.predict_proba(transformed), dtype=float)
+    if hasattr(clf, "decision_function"):
+        return _softmax_rows(np.asarray(clf.decision_function(transformed), dtype=float))
+    raise RuntimeError("Candidate model exposes neither predict_proba nor decision_function.")
+
+
 def evaluate_model(model, df: pd.DataFrame) -> dict:
     frame = build_model_frame(df)
-    probabilities = model.predict_proba(frame)
+    probabilities = model_score_matrix(model, frame)
     predictions = model.predict(frame)
     labels = df["category"].astype(str)
     classes = list(model.named_steps["clf"].classes_)
@@ -194,6 +245,13 @@ def register_model_if_configured(
         key="actual.model_version",
         value=str(metadata["model_version"]),
     )
+    if metadata.get("model_family"):
+        client.set_model_version_tag(
+            name=model_name,
+            version=registered_model.version,
+            key="actual.model_family",
+            value=str(metadata["model_family"]),
+        )
     for split_name, split_metrics in metadata["metrics"].items():
         for metric_name, value in split_metrics.items():
             client.set_model_version_tag(
@@ -226,6 +284,11 @@ def main():
     parser.add_argument("--max-word-features", type=int, default=25000)
     parser.add_argument("--max-char-features", type=int, default=25000)
     parser.add_argument("--c-value", type=float, default=2.0)
+    parser.add_argument(
+        "--model-families",
+        default="logreg,linear_svm,sgd_log",
+        help="Comma-separated candidate families. Supported: logreg, linear_svm, sgd_log.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output_dir)
@@ -263,17 +326,71 @@ def main():
             }
         )
 
-        model = build_pipeline(
-            max_word_features=args.max_word_features,
-            max_char_features=args.max_char_features,
-            c_value=args.c_value,
-        )
-        model.fit(build_model_frame(train_df), train_df["category"].astype(str))
+        train_frame = build_model_frame(train_df)
+        families = [item.strip() for item in args.model_families.split(",") if item.strip()]
+        candidate_records = []
+        best_candidate = None
 
-        val_metrics = evaluate_model(model, val_df)
-        test_metrics = evaluate_model(model, test_df)
+        for family in families:
+            candidate_model = build_pipeline(
+                max_word_features=args.max_word_features,
+                max_char_features=args.max_char_features,
+                c_value=args.c_value,
+                model_family=family,
+            )
+            candidate_model.fit(train_frame, train_df["category"].astype(str))
+            candidate_val_metrics = evaluate_model(candidate_model, val_df)
+            candidate_test_metrics = evaluate_model(candidate_model, test_df)
+            record = {
+                "model_family": family,
+                "validation": candidate_val_metrics,
+                "test": candidate_test_metrics,
+            }
+            candidate_records.append(record)
+            mlflow.log_metrics(
+                {
+                    f"{family}_val_{key}": value
+                    for key, value in candidate_val_metrics.items()
+                    if key != "row_count"
+                }
+            )
+            mlflow.log_metrics(
+                {
+                    f"{family}_test_{key}": value
+                    for key, value in candidate_test_metrics.items()
+                    if key != "row_count"
+                }
+            )
+            score = (
+                candidate_val_metrics["top3_accuracy"],
+                candidate_val_metrics["macro_f1"],
+                candidate_val_metrics["top1_accuracy"],
+            )
+            if best_candidate is None or score > best_candidate["score"]:
+                best_candidate = {
+                    "score": score,
+                    "model": candidate_model,
+                    "record": record,
+                }
+
+        if best_candidate is None:
+            raise RuntimeError("No model candidates were trained.")
+
+        model = best_candidate["model"]
+        selected_record = best_candidate["record"]
+        selected_family = selected_record["model_family"]
+        val_metrics = selected_record["validation"]
+        test_metrics = selected_record["test"]
+        mlflow.log_params(
+            {
+                "candidate_model_families": ",".join(families),
+                "selected_model_family": selected_family,
+                "model_selection_policy": "max validation top3_accuracy, macro_f1, top1_accuracy",
+            }
+        )
         mlflow.log_metrics({f"val_{k}": v for k, v in val_metrics.items() if k != "row_count"})
         mlflow.log_metrics({f"test_{k}": v for k, v in test_metrics.items() if k != "row_count"})
+        mlflow.log_dict(candidate_records, artifact_file="candidate_models.json")
 
         model_version = datetime.now(timezone.utc).strftime("v%Y%m%d%H%M%S")
 
@@ -281,6 +398,9 @@ def main():
         metadata = {
             "model_version": model_version,
             "created_at": datetime.now(timezone.utc).isoformat(),
+            "model_family": selected_family,
+            "candidate_models": candidate_records,
+            "model_selection_policy": "max validation top3_accuracy, macro_f1, top1_accuracy",
             "metrics": {
                 "validation": val_metrics,
                 "test": test_metrics,

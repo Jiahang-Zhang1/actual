@@ -65,11 +65,16 @@ services:
     container_name: actualbudget-serving-prometheus
     depends_on:
       - serve
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.console.templates=/etc/prometheus/consoles
+      - --web.console.libraries=/etc/prometheus/console_libraries
     ports:
       - '${PROMETHEUS_PORT:-9090}:9090'
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus-alerts.yml:/etc/prometheus/prometheus-alerts.yml:ro
+      - ./monitoring/prometheus-console:/etc/prometheus/consoles:ro
       - prometheus_data:/prometheus
 
   grafana:

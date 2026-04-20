@@ -8,8 +8,11 @@ ACTUAL_URL="${ACTUAL_URL:-http://127.0.0.1:3001/accounts}"
 SYNC_URL="${SYNC_URL:-http://127.0.0.1:5006/accounts}"
 SERVING_URL="${SERVING_URL:-http://127.0.0.1:8000}"
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
+PROMETHEUS_QUERIES_URL="${PROMETHEUS_QUERIES_URL:-$PROMETHEUS_URL/consoles/actual_ml_queries.html}"
 GRAFANA_URL="${GRAFANA_URL:-http://127.0.0.1:3000}"
 GRAFANA_OVERVIEW_URL="${GRAFANA_OVERVIEW_URL:-$GRAFANA_URL/d/actual-ml-system-overview/actual-ml-system-overview}"
+GRAFANA_MODEL_URL="${GRAFANA_MODEL_URL:-$GRAFANA_URL/d/actual-ml-model-behavior/model-behavior}"
+GRAFANA_ROLLOUT_URL="${GRAFANA_ROLLOUT_URL:-$GRAFANA_URL/d/actual-ml-data-rollout/data-quality-and-rollout}"
 MLFLOW_URL="${MLFLOW_URL:-http://127.0.0.1:5000}"
 
 wait_for_url() {
@@ -93,7 +96,10 @@ open_url "$SYNC_URL"
 open_url "$SERVING_URL/docs"
 open_url "$SERVING_URL/monitor/summary"
 open_url "$PROMETHEUS_URL"
+open_url "$PROMETHEUS_QUERIES_URL"
 open_url "$GRAFANA_OVERVIEW_URL"
+open_url "$GRAFANA_MODEL_URL"
+open_url "$GRAFANA_ROLLOUT_URL"
 open_url "$MLFLOW_URL"
 
 cat <<EOF

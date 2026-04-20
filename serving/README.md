@@ -151,7 +151,10 @@ k8s/ml-system/overlays/production/
 | Serving monitor summary | `http://127.0.0.1:8000/monitor/summary` | Current model, request, feedback, and data quality behavior |
 | Serving rollout decision | `http://127.0.0.1:8000/monitor/decision` | Promotion or rollback recommendation |
 | Prometheus | `http://127.0.0.1:9090` | Metrics query UI |
+| Prometheus recommended queries | `http://127.0.0.1:9090/consoles/actual_ml_queries.html` | Clickable query list for demos |
 | Grafana overview | `http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview` | Main monitoring dashboard |
+| Grafana model behavior | `http://127.0.0.1:3000/d/actual-ml-model-behavior/model-behavior` | Model output and feedback dashboard |
+| Grafana data/rollout | `http://127.0.0.1:3000/d/actual-ml-data-rollout/data-quality-and-rollout` | Data quality and rollout safety dashboard |
 | Grafana home | `http://127.0.0.1:3000` | Dashboard index, login `admin / admin` |
 | MLflow | `http://127.0.0.1:5000` | Training run tracking and model registry |
 | MinIO console | `http://127.0.0.1:9001` | MLflow artifact storage UI |
@@ -578,8 +581,20 @@ Main files:
 ```text
 serving/monitoring/prometheus.yml
 serving/monitoring/prometheus-alerts.yml
+serving/monitoring/prometheus-console/actual_ml_queries.html
 serving/docker-compose.yml
 ```
+
+Prometheus recommended queries:
+
+```text
+http://127.0.0.1:9090/consoles/actual_ml_queries.html
+```
+
+Prometheus does not provide a project-specific default query list in the
+standard expression browser. The console page above adds clickable demo queries
+for service health, model output, feedback acceptance, rollout alerts, and data
+quality.
 
 Important metrics:
 
@@ -625,7 +640,7 @@ SmartcatOnlineDriftHigh
 Grafana purpose:
 
 - Show service health, model output, user feedback, data quality, and rollout status.
-- Provide one overview page for demos and production checks.
+- Keep the demo view readable by using three focused dashboards instead of many tables.
 
 Main files:
 
@@ -633,11 +648,17 @@ Main files:
 serving/monitoring/grafana/provisioning/datasources/datasource.yml
 serving/monitoring/grafana/provisioning/dashboards/dashboards.yml
 serving/monitoring/grafana/dashboards/system_overview.json
-serving/monitoring/grafana/dashboards/service_monitoring.json
-serving/monitoring/grafana/dashboards/prediction_monitoring.json
-serving/monitoring/grafana/dashboards/feedback_monitoring.json
-serving/monitoring/grafana/dashboards/data_quality_monitoring.json
+serving/monitoring/grafana/dashboards/model_behavior.json
+serving/monitoring/grafana/dashboards/data_rollout.json
 ```
+
+Dashboard guide:
+
+| Dashboard | Use it for | What to say in demo |
+| --- | --- | --- |
+| Actual ML System Overview | One-screen health check | Serving is up, requests are flowing, latency/error SLOs are safe, feedback is arriving, and data gates are visible. |
+| Model Behavior | Model output and user response | The model returns diverse Top-3 categories, confidence is tracked, and Top-1/Top-3 acceptance shows whether suggestions are useful. |
+| Data Quality & Rollout | Data gates and promote/rollback safety | Ingestion/training/online drift checks feed Prometheus, and rollout alerts justify promote/rollback decisions. |
 
 ### 6.6 Data Quality
 
@@ -690,8 +711,9 @@ Purpose:
 
 - Compile training data.
 - Run data quality gates.
-- Train a challenger model.
+- Train multiple challenger model families.
 - Evaluate task-specific metrics.
+- Select the best model family by validation Top-3 accuracy, macro F1, then Top-1 accuracy.
 - Register the challenger in MLflow when a tracking URI is configured.
 - Promote the challenger if it passes thresholds and is at least as good as the current deployed model.
 - Update the MLflow production/canary/staging alias after promotion.
@@ -715,6 +737,34 @@ k8s/ml-system/base/mlflow-platform.yaml
 k8s/ml-system/base/training-pipeline-cronjob.yaml
 k8s/ml-system/base/rollout-decision-cronjob.yaml
 serving/tools/execute_rollout_action.py
+```
+
+Model families currently trained by the automated pipeline:
+
+| Family | Why it is included |
+| --- | --- |
+| `logreg` | Main TF-IDF + Logistic Regression baseline from the slides. |
+| `linear_svm` | Strong linear text classifier alternative from the slides. |
+| `sgd_log` | Fast incremental-style linear classifier suitable for frequent retraining. |
+
+The selected model family is written to `metadata.json` as `model_family`.
+MLflow also logs every family under metrics such as:
+
+```text
+logreg_val_top3_accuracy
+linear_svm_val_top3_accuracy
+sgd_log_val_top3_accuracy
+selected_model_family
+candidate_models.json
+```
+
+After the model-family winner is selected, `scripts/export_model_variants.py`
+creates the three serving artifacts: sklearn joblib, ONNX, and ONNX dynamic
+quantization. This means there are two selection steps:
+
+```text
+1. Pick the best model family by validation quality.
+2. Pick the best deployable artifact variant by parity + p95 latency + size.
 ```
 
 Local automated pipeline:
