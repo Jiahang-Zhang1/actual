@@ -21,8 +21,8 @@ Use Actual's built-in `Create test file`, open an account, then import the QIF
 as bank transactions. This avoids relying on the demo budget while still
 testing the normal user flow.
 
-For the full team walkthrough, see
-`serving/TEAM_TESTING_README.md`.
+For the full team walkthrough, service inventory, requirement mapping, and
+testing sequence, see `serving/README.md`.
 
 ## Automated Pipeline
 
