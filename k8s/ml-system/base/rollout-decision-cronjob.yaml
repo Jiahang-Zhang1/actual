@@ -1,0 +1,46 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: serving-rollout-decision
+  labels:
+    app.kubernetes.io/name: serving-rollout-decision
+spec:
+  schedule: "*/15 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: serving-rollout-decision
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: rollout-decision
+              image: actualbudget/smartcat-mlops:latest
+              imagePullPolicy: IfNotPresent
+              workingDir: /workspace
+              command: ["python"]
+              args:
+                - serving/tools/execute_rollout_action.py
+                - --execute
+                - --monitor-url
+                - http://smartcat-serving:8000/monitor/decision
+                - --challenger-dir
+                - /workspace/artifacts/challenger
+                - --deployed-dir
+                - /workspace/artifacts/deployed
+                - --archive-dir
+                - /workspace/artifacts/archive
+                - --reload-url
+                - http://smartcat-serving:8000/admin/reload-model
+              volumeMounts:
+                - name: ml-artifacts
+                  mountPath: /workspace/artifacts
+          volumes:
+            - name: ml-artifacts
+              persistentVolumeClaim:
+                claimName: ml-artifacts

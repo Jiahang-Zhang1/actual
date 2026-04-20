@@ -289,6 +289,24 @@ const TransactionHeader = memo(
             }
           />
         )}
+        {showCategory && (
+          <HeaderCell
+            value={t('AI Suggestion')}
+            width={220}
+            alignItems="flex"
+            marginLeft={-5}
+            id="ai-predictions"
+          />
+        )}
+        {showCategory && (
+          <HeaderCell
+            value={t('All Top-3')}
+            width={390}
+            alignItems="flex"
+            marginLeft={-5}
+            id="ai-top-3"
+          />
+        )}
         <HeaderCell
           value={t('Payment')}
           width={100}
@@ -492,92 +510,243 @@ type MlSuggestion = {
   topCategories: Array<{ category_id: string; score: number }>;
 };
 
-function AISuggestionControl({
+function getCategoryDisplayName(
+  categoryGroups: CategoryGroupEntity[],
+  categoryId: string,
+) {
+  return getCategoriesById(categoryGroups)[categoryId]?.name || categoryId;
+}
+
+function getCompactCategoryName(categoryName: string) {
+  const compactNames: Record<string, string> = {
+    'Charity & Donations': 'Charity',
+    'Entertainment & Recreation': 'Entertainment',
+    'Financial Services': 'Financial',
+    'Food & Dining': 'Food',
+    'Government & Legal': 'Gov/Legal',
+    'Healthcare & Medical': 'Healthcare',
+    'Shopping & Retail': 'Shopping',
+    Transportation: 'Transport',
+    'Utilities & Services': 'Utilities',
+  };
+
+  return compactNames[categoryName] ?? categoryName;
+}
+
+function AIPredictionsCell({
   suggestion,
+  categoryGroups,
+  selectedCategoryId,
   onAccept,
 }: {
-  suggestion: MlSuggestion;
-  onAccept: (categoryId: string) => Promise<void> | void;
+  suggestion: MlSuggestion | null;
+  categoryGroups: CategoryGroupEntity[];
+  selectedCategoryId: null | string | undefined;
+  onAccept?: (categoryId: string) => Promise<void> | void;
 }) {
-  const triggerRef = useRef<HTMLDivElement>(null);
-  const [isOpen, setIsOpen] = useState(false);
+  if (!suggestion || suggestion.topCategories.length === 0) {
+    return (
+      <Text style={{ color: theme.pageTextSubdued, fontStyle: 'italic' }}>
+        -
+      </Text>
+    );
+  }
+
+  const topCategory =
+    suggestion.topCategories.find(
+      item => item.category_id === selectedCategoryId,
+    ) ?? suggestion.topCategories[0];
+  const fullCategoryName = getCategoryDisplayName(
+    categoryGroups,
+    topCategory.category_id,
+  );
+  const categoryName = getCompactCategoryName(fullCategoryName);
+  const isSelected = selectedCategoryId === topCategory.category_id;
+  const confidenceLabel = `${(topCategory.score * 100).toFixed(1)}%`;
+
+  const content = (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        width: '100%',
+        gap: 8,
+      }}
+    >
+      <Text
+        style={{
+          flex: 1,
+          minWidth: 0,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          fontWeight: isSelected ? 600 : 400,
+        }}
+        title={`${fullCategoryName} (${confidenceLabel})`}
+      >
+        {categoryName}
+      </Text>
+      <Text style={{ color: theme.pageTextSubdued }}>{confidenceLabel}</Text>
+    </View>
+  );
+
+  if (!onAccept) {
+    return (
+      <View
+        style={{
+          width: '100%',
+          padding: '3px 6px',
+          borderRadius: 4,
+          border: `1px solid ${
+            isSelected ? theme.noticeTextLight : theme.tableBorder
+          }`,
+        }}
+      >
+        {content}
+      </View>
+    );
+  }
 
   return (
-    <>
-      <View
-        innerRef={triggerRef}
-        style={{ display: 'inline-flex', marginLeft: 6 }}
-      >
-        <Button
-          variant="bare"
-          onPress={() => setIsOpen(open => !open)}
-          style={{
-            padding: '1px 6px',
-            borderRadius: 999,
-            border: `1px solid ${theme.noticeTextLight}`,
-            backgroundColor: theme.noticeBackground,
-            color: theme.noticeText,
-            fontSize: 11,
-            fontWeight: 600,
-            lineHeight: '16px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          AI {Math.round(suggestion.confidence * 100)}%
-        </Button>
-      </View>
+    <Button
+      variant="bare"
+      onPress={() => onAccept(topCategory.category_id)}
+      style={{
+        width: '100%',
+        padding: '3px 6px',
+        borderRadius: 4,
+        border: `1px solid ${
+          isSelected ? theme.noticeTextLight : theme.tableBorder
+        }`,
+        backgroundColor: isSelected
+          ? theme.noticeBackground
+          : theme.tableBackground,
+      }}
+    >
+      {content}
+    </Button>
+  );
+}
 
-      <Popover
-        triggerRef={triggerRef}
-        placement="bottom end"
-        isOpen={isOpen}
-        onOpenChange={setIsOpen}
-        isNonModal
-        style={{ minWidth: 240, padding: 8 }}
-      >
-        <View style={{ gap: 6, minWidth: 240 }}>
-          <Text style={{ fontWeight: 600 }}>
-            <Trans>AI suggestions</Trans>
-          </Text>
-          <Text style={{ fontSize: 11, color: theme.pageTextSubdued }}>
-            <Trans>Pick a category to apply and log feedback.</Trans>
-          </Text>
+function AITopThreeCell({
+  suggestion,
+  categoryGroups,
+  selectedCategoryId,
+  onAccept,
+}: {
+  suggestion: MlSuggestion | null;
+  categoryGroups: CategoryGroupEntity[];
+  selectedCategoryId: null | string | undefined;
+  onAccept?: (categoryId: string) => Promise<void> | void;
+}) {
+  if (!suggestion || suggestion.topCategories.length === 0) {
+    return (
+      <Text style={{ color: theme.pageTextSubdued, fontStyle: 'italic' }}>
+        -
+      </Text>
+    );
+  }
 
-          {suggestion.topCategories.slice(0, 3).map(item => (
-            <Button
-              key={item.category_id}
-              variant="bare"
-              onPress={async () => {
-                setIsOpen(false);
-                await onAccept(item.category_id);
-              }}
+  return (
+    <View
+      style={{
+        width: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        minWidth: 0,
+      }}
+    >
+      {suggestion.topCategories.slice(0, 3).map((item, index) => {
+        const fullCategoryName = getCategoryDisplayName(
+          categoryGroups,
+          item.category_id,
+        );
+        const categoryName = getCompactCategoryName(fullCategoryName);
+        const isSelected = selectedCategoryId === item.category_id;
+        const confidenceLabel = `${(item.score * 100).toFixed(1)}%`;
+
+        const content = (
+          <View
+            style={{
+              width: '100%',
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 4,
+              minWidth: 0,
+            }}
+          >
+            <Text
               style={{
-                width: '100%',
-                padding: '6px 8px',
-                borderRadius: 4,
-                backgroundColor: theme.buttonNormalBackground,
-                color: theme.buttonNormalText,
+                flex: 1,
+                minWidth: 0,
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                fontWeight: isSelected ? 600 : 400,
+                fontSize: 12,
+              }}
+              title={`${index + 1}. ${fullCategoryName} (${confidenceLabel})`}
+            >
+              {index + 1}. {categoryName}
+            </Text>
+            <Text
+              style={{
+                color: isSelected ? theme.tableText : theme.pageTextSubdued,
+                fontSize: 12,
+                fontWeight: isSelected ? 600 : 400,
               }}
             >
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  gap: 8,
-                  width: '100%',
-                }}
-              >
-                <Text style={{ flex: 1, minWidth: 0 }}>{item.category_id}</Text>
-                <Text style={{ color: theme.pageTextSubdued }}>
-                  {Math.round(item.score * 100)}%
-                </Text>
-              </View>
-            </Button>
-          ))}
-        </View>
-      </Popover>
-    </>
+              {confidenceLabel}
+            </Text>
+          </View>
+        );
+
+        if (!onAccept) {
+          return (
+            <View
+              key={`${item.category_id}-${index}`}
+              style={{
+                flex: 1,
+                minWidth: 0,
+                padding: '2px 4px',
+                borderRadius: 4,
+                border: `1px solid ${
+                  isSelected ? theme.noticeTextLight : theme.tableBorder
+                }`,
+              }}
+              title={`${index + 1}. ${fullCategoryName} (${confidenceLabel})`}
+            >
+              {content}
+            </View>
+          );
+        }
+
+        // Keep each top-k option one-click actionable so user corrections feed retraining.
+        return (
+          <Button
+            key={`${item.category_id}-${index}`}
+            variant="bare"
+            onPress={() => onAccept(item.category_id)}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              padding: '2px 4px',
+              borderRadius: 4,
+              border: `1px solid ${
+                isSelected ? theme.noticeTextLight : theme.tableBorder
+              }`,
+              backgroundColor: isSelected
+                ? theme.noticeBackground
+                : theme.tableBackground,
+            }}
+          >
+            {content}
+          </Button>
+        );
+      })}
+    </View>
   );
 }
 
@@ -1277,10 +1446,33 @@ const Transaction = memo(function Transaction({
       : transferAccountsByTransaction[id];
   const isBudgetTransfer = transferAcct && transferAcct.offbudget === 0;
   const isOffBudget = account && account.offbudget === 1;
-  const mlSuggestion =
-    !isPreview && !isParent && !isChild && !categoryId && id && getMlSuggestion
-      ? getMlSuggestion(id)
-      : null;
+  const rawMlSuggestion = id && getMlSuggestion ? getMlSuggestion(id) : null;
+  // Always surface the suggestion when available so demo/test users can
+  // inspect top-k scores directly from the dedicated AI column.
+  const mlSuggestion = rawMlSuggestion;
+  const topPredictedCategoryId = mlSuggestion?.topCategories?.[0]?.category_id;
+  const topCategoryIdsKey =
+    mlSuggestion?.topCategories.map(item => item.category_id).join('|') ?? '';
+  const [userSelectedMlCategoryId, setUserSelectedMlCategoryId] = useState<
+    string | null
+  >(null);
+
+  useEffect(() => {
+    setUserSelectedMlCategoryId(null);
+  }, [id, topCategoryIdsKey]);
+
+  useEffect(() => {
+    setUserSelectedMlCategoryId(current =>
+      current && categoryId && current !== categoryId ? null : current,
+    );
+  }, [categoryId]);
+
+  // AI starts on the highest-confidence candidate, then follows the user's
+  // explicit top-k choice so the visible suggestion matches feedback.
+  const selectedMlCategoryId =
+    userSelectedMlCategoryId || topPredictedCategoryId || null;
+  const effectiveCategoryId =
+    userSelectedMlCategoryId || categoryId || topPredictedCategoryId || null;
 
   const valueStyle = added ? { fontWeight: 600 } : null;
   const backgroundFocus = focusedField === 'select';
@@ -1820,10 +2012,10 @@ const Transaction = memo(function Transaction({
             name="category"
             width="flex"
             textAlign="flex"
-            value={categoryId}
+            value={effectiveCategoryId}
             formatter={value =>
               value
-                ? (getCategoriesById(categoryGroups)[value]?.name ?? '')
+                ? (getCategoriesById(categoryGroups)[value]?.name ?? value)
                 : transaction.id
                   ? t('Categorize')
                   : ''
@@ -1845,7 +2037,7 @@ const Transaction = memo(function Transaction({
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap',
-                      ...(!categoryId
+                      ...(!effectiveCategoryId
                         ? {
                             fontStyle: 'italic',
                             fontWeight: 300,
@@ -1857,19 +2049,10 @@ const Transaction = memo(function Transaction({
                     {cellValue}
                   </Text>
                 </View>
-
-                {mlSuggestion && onApplyMlSuggestion ? (
-                  <AISuggestionControl
-                    suggestion={mlSuggestion}
-                    onAccept={categoryId =>
-                      onApplyMlSuggestion(originalTransaction, categoryId)
-                    }
-                  />
-                ) : null}
               </View>
             )}
             valueStyle={
-              !categoryId
+              !effectiveCategoryId
                 ? {
                     // uncategorized transaction
                     fontStyle: 'italic',
@@ -1917,6 +2100,55 @@ const Transaction = memo(function Transaction({
             )}
           </CustomCell>
         )}
+
+        <Cell
+          name="ai-predictions"
+          width={220}
+          focused={false}
+          plain
+          style={{
+            padding: '0 6px',
+            alignItems: 'center',
+          }}
+        >
+          <AIPredictionsCell
+            suggestion={mlSuggestion}
+            categoryGroups={categoryGroups}
+            selectedCategoryId={selectedMlCategoryId}
+            onAccept={
+              !isPreview && onApplyMlSuggestion
+                ? categoryId => {
+                    setUserSelectedMlCategoryId(categoryId);
+                    return onApplyMlSuggestion(originalTransaction, categoryId);
+                  }
+                : undefined
+            }
+          />
+        </Cell>
+        <Cell
+          name="ai-top-3"
+          width={390}
+          focused={false}
+          plain
+          style={{
+            padding: '0 6px',
+            alignItems: 'center',
+          }}
+        >
+          <AITopThreeCell
+            suggestion={mlSuggestion}
+            categoryGroups={categoryGroups}
+            selectedCategoryId={selectedMlCategoryId}
+            onAccept={
+              !isPreview && onApplyMlSuggestion
+                ? categoryId => {
+                    setUserSelectedMlCategoryId(categoryId);
+                    return onApplyMlSuggestion(originalTransaction, categoryId);
+                  }
+                : undefined
+            }
+          />
+        </Cell>
 
         <InputCell
           /* Debit field for all transactions */

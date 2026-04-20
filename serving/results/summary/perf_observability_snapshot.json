@@ -1,0 +1,115 @@
+{
+  "timestamp_utc": "2026-04-20T02:28:16.209585+00:00",
+  "service_urls": {
+    "actual_web": "http://127.0.0.1:3001",
+    "actual_sync": "http://127.0.0.1:5006",
+    "serving_api": "http://127.0.0.1:8000/docs",
+    "prometheus": "http://127.0.0.1:9090",
+    "grafana": "http://127.0.0.1:3000"
+  },
+  "prometheus_metrics": {
+    "rps_predict_plus_batch_5m": 2.992057272205223,
+    "rps_predict_5m": 2.065751422532284,
+    "rps_predict_batch_5m": 0.926328790579517,
+    "error_rate_5m": null,
+    "p95_latency_predict_seconds_5m": 0.095,
+    "p95_latency_predict_batch_seconds_5m": 0.095,
+    "feedback_events_per_sec_5m": 1.350870031538573
+  },
+  "serving_monitor_summary": {
+    "backend_kind": "onnx_dynamic_quant",
+    "model_version": "v2_tfidf_linearsvc",
+    "code_version": "dev",
+    "rollout_context": "production",
+    "window_minutes": 60,
+    "request_count": 514,
+    "item_count": 1135,
+    "p50_latency_ms": 7.0121,
+    "p95_latency_ms": 11.5619,
+    "p99_latency_ms": 14.5771,
+    "error_rate": 0.0,
+    "prediction_count": 1135,
+    "avg_confidence": 0.6311,
+    "p10_confidence": 0.3245,
+    "predicted_category_counts": {
+      "Food & Dining": 514,
+      "Transportation": 311,
+      "Shopping & Retail": 155,
+      "Entertainment & Recreation": 155
+    },
+    "feedback_count": 351,
+    "top1_acceptance": 0.7806,
+    "top3_acceptance": 0.9601,
+    "selected_category_counts": {
+      "Food & Dining": 58,
+      "Entertainment & Recreation": 73,
+      "Transportation": 104,
+      "Shopping & Retail": 66,
+      "Financial Services": 18,
+      "Healthcare": 3,
+      "Groceries": 3,
+      "Charity & Donations": 18,
+      "Transfer": 5,
+      "Bills & Utilities": 3
+    }
+  },
+  "serving_monitor_decision": {
+    "recommended_action": "hold",
+    "reasons": [],
+    "thresholds": {
+      "promotion": {
+        "min_requests": 100,
+        "min_feedback": 20,
+        "max_p95_ms": 100.0,
+        "max_error_rate": 0.01,
+        "min_top1_acceptance": 0.6,
+        "min_top3_acceptance": 0.8
+      },
+      "rollback": {
+        "min_requests": 20,
+        "min_feedback": 10,
+        "max_p95_ms": 250.0,
+        "max_error_rate": 0.02,
+        "min_top1_acceptance": 0.45,
+        "min_top3_acceptance": 0.7
+      }
+    },
+    "summary": {
+      "backend_kind": "onnx_dynamic_quant",
+      "model_version": "v2_tfidf_linearsvc",
+      "code_version": "dev",
+      "rollout_context": "production",
+      "window_minutes": 60,
+      "request_count": 514,
+      "item_count": 1135,
+      "p50_latency_ms": 7.0121,
+      "p95_latency_ms": 11.5619,
+      "p99_latency_ms": 14.5771,
+      "error_rate": 0.0,
+      "prediction_count": 1135,
+      "avg_confidence": 0.6311,
+      "p10_confidence": 0.3245,
+      "predicted_category_counts": {
+        "Food & Dining": 514,
+        "Transportation": 311,
+        "Shopping & Retail": 155,
+        "Entertainment & Recreation": 155
+      },
+      "feedback_count": 351,
+      "top1_acceptance": 0.7806,
+      "top3_acceptance": 0.9601,
+      "selected_category_counts": {
+        "Food & Dining": 58,
+        "Entertainment & Recreation": 73,
+        "Transportation": 104,
+        "Shopping & Retail": 66,
+        "Financial Services": 18,
+        "Healthcare": 3,
+        "Groceries": 3,
+        "Charity & Donations": 18,
+        "Transfer": 5,
+        "Bills & Utilities": 3
+      }
+    }
+  }
+}

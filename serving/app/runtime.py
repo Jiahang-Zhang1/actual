@@ -32,3 +32,8 @@ def warmup_backend() -> None:
         ]
     )
     backend.predict(frame)
+
+
+def reload_backend() -> None:
+    get_backend.cache_clear()
+    warmup_backend()

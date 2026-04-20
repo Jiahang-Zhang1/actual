@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: actual-ml-canary
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: smartcat-serving
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ROLLOUT_CONTEXT
+          value: candidate
+  - target:
+      kind: CronJob
+      name: ml-retrain-evaluate-promote
+    patch: |-
+      - op: replace
+        path: /spec/schedule
+        value: "0 */3 * * *"
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: smartcat-serving
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 1
+      - op: replace
+        path: /spec/maxReplicas
+        value: 3
+
+configMapGenerator:
+  - name: actual-ml-config
+    behavior: merge
+    literals:
+      - PROMOTION_MIN_REQUESTS=50
+      - PROMOTION_MIN_FEEDBACK=10
+      - PROMOTION_MIN_TOP1_ACCEPTANCE=0.58
+      - PROMOTION_MIN_TOP3_ACCEPTANCE=0.78

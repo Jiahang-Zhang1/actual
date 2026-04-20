@@ -1,5 +1,7 @@
-import pandas as pd
 import os
+
+import pandas as pd
+
 from data_quality_check import check_ingestion_quality
 
 DATA_PATH = os.getenv('DATA_PATH', '/home/cc')
@@ -12,4 +14,4 @@ df['transaction_description_clean'] = df['transaction_description'].str.lower().
 df.to_parquet(output_file, index=False)
 print(f"Ingested and cleaned data saved to {output_file}")
 
-check_ingestion_quality(output_file)
+print(check_ingestion_quality(output_file))

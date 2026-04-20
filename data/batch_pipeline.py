@@ -1,5 +1,7 @@
-import pandas as pd
 import os
+
+import pandas as pd
+
 from data_quality_check import check_training_set_quality
 
 DATA_PATH = os.getenv('DATA_PATH', '/home/cc')
@@ -15,4 +17,4 @@ train_df.to_csv(f"{DATA_PATH}/train_data.csv", index=False)
 eval_df.to_csv(f"{DATA_PATH}/eval_data.csv", index=False)
 print(df.head(5))
 
-check_training_set_quality(f"{DATA_PATH}/train_data.csv", f"{DATA_PATH}/eval_data.csv")
+print(check_training_set_quality(f"{DATA_PATH}/train_data.csv", f"{DATA_PATH}/eval_data.csv"))

@@ -1,0 +1,34 @@
+{
+  "model_version": "v2_tfidf_linearsvc",
+  "code_version": "unknown",
+  "source_model_path": "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
+  "optimized_model_paths": {
+    "onnx": "/workspace/models/optimized/v2_tfidf_linearsvc_model.onnx",
+    "onnx_dynamic_quant": "/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx"
+  },
+  "sizes_mb": {
+    "source": 3.4324,
+    "onnx": 2.2605,
+    "onnx_dynamic_quant": 2.2609
+  },
+  "validation_sample": {
+    "baseline_label": "Food & Dining",
+    "onnx_label": "Food & Dining",
+    "onnx_dynamic_quant_label": "Food & Dining",
+    "baseline_top1_confidence": 0.401855,
+    "onnx_top1_confidence": 0.401855,
+    "onnx_dynamic_quant_top1_confidence": 0.401855
+  },
+  "classes": [
+    "Charity & Donations",
+    "Entertainment & Recreation",
+    "Financial Services",
+    "Food & Dining",
+    "Government & Legal",
+    "Healthcare & Medical",
+    "Income",
+    "Shopping & Retail",
+    "Transportation",
+    "Utilities & Services"
+  ]
+}

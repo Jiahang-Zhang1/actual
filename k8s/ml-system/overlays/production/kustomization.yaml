@@ -1,0 +1,48 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: actual-ml-production
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+patches:
+  - target:
+      kind: Deployment
+      name: smartcat-serving
+    patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 2
+      - op: add
+        path: /spec/template/spec/containers/0/env/-
+        value:
+          name: ROLLOUT_CONTEXT
+          value: production
+  - target:
+      kind: CronJob
+      name: ml-retrain-evaluate-promote
+    patch: |-
+      - op: replace
+        path: /spec/schedule
+        value: "0 */12 * * *"
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: smartcat-serving
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 2
+      - op: replace
+        path: /spec/maxReplicas
+        value: 6
+
+configMapGenerator:
+  - name: actual-ml-config
+    behavior: merge
+    literals:
+      - PROMOTION_MIN_REQUESTS=100
+      - PROMOTION_MIN_FEEDBACK=20
+      - ROLLBACK_MIN_REQUESTS=20
+      - ROLLBACK_MIN_FEEDBACK=10

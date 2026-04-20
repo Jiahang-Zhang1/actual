@@ -10,12 +10,12 @@ from typing import Any, Dict, List
 import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import get_settings
 from app.feature_adapter import build_feature_frame, choose_description
-from app.runtime import get_backend, warmup_backend
+from app.runtime import get_backend, reload_backend, warmup_backend
 from app.schemas import (
     BatchPredictRequest,
     CategoryScore,
@@ -49,6 +49,7 @@ RUNTIME_DIR = Path(settings.runtime_dir)
 FEEDBACK_LOG = RUNTIME_DIR / "feedback_events.jsonl"
 REQUEST_LOG = RUNTIME_DIR / "request_events.jsonl"
 PREDICTION_LOG = RUNTIME_DIR / "prediction_events.jsonl"
+DATA_QUALITY_LOG = RUNTIME_DIR / "data_quality_events.jsonl"
 
 prediction_confidence = Histogram(
     "prediction_confidence",
@@ -76,6 +77,24 @@ feedback_match_total = Counter(
 feedback_top3_match_total = Counter(
     "feedback_top3_match_total",
     "Count where user picked one of the model top-k candidates",
+)
+
+data_quality_pass = Gauge(
+    "actual_data_quality_pass",
+    "Whether the latest data quality check passed.",
+    ["stage"],
+)
+
+data_quality_issue_count = Gauge(
+    "actual_data_quality_issue_count",
+    "Number of issues from the latest data quality check.",
+    ["stage"],
+)
+
+data_quality_metric = Gauge(
+    "actual_data_quality_metric",
+    "Numeric metrics emitted by data quality checks.",
+    ["stage", "metric"],
 )
 
 
@@ -221,7 +240,41 @@ def _monitor_summary() -> Dict[str, Any]:
     summary.update(_request_summary(window_minutes))
     summary.update(_prediction_summary(window_minutes))
     summary.update(_feedback_summary(window_minutes))
+    summary["data_quality"] = _data_quality_summary(window_minutes)
     return summary
+
+
+def _record_data_quality(payload: Dict[str, Any]) -> Dict[str, Any]:
+    stage = str(payload.get("stage", "unknown"))
+    passed = bool(payload.get("passed", False))
+    issue_count = int(payload.get("issue_count", len(payload.get("issues", []))))
+    metrics = payload.get("metrics", {})
+    event = {
+        "ts": _utc_now_iso(),
+        "stage": stage,
+        "passed": passed,
+        "issue_count": issue_count,
+        "issues": payload.get("issues", []),
+        "metrics": metrics if isinstance(metrics, dict) else {},
+    }
+
+    data_quality_pass.labels(stage=stage).set(1 if passed else 0)
+    data_quality_issue_count.labels(stage=stage).set(issue_count)
+    if isinstance(metrics, dict):
+        for key, value in metrics.items():
+            if isinstance(value, (int, float)):
+                data_quality_metric.labels(stage=stage, metric=str(key)).set(float(value))
+
+    _safe_append_jsonl(DATA_QUALITY_LOG, event)
+    return event
+
+
+def _data_quality_summary(window_minutes: int) -> Dict[str, Any]:
+    latest_by_stage: Dict[str, Dict[str, Any]] = {}
+    for event in _iter_recent_events(DATA_QUALITY_LOG, window_minutes):
+        stage = str(event.get("stage", "unknown"))
+        latest_by_stage[stage] = event
+    return latest_by_stage
 
 
 def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
@@ -247,6 +300,8 @@ def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
     }
 
     if settings.rollout_context == "candidate":
+        # Candidate context can only propose promotion after meeting quality and
+        # stability thresholds with enough traffic and feedback.
         if summary["request_count"] < settings.promotion_min_requests:
             reasons.append("candidate sample size too small for promotion")
         if summary["feedback_count"] < settings.promotion_min_feedback:
@@ -264,6 +319,8 @@ def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
             action = "promote_candidate"
             reasons.append("candidate met latency, error, and feedback thresholds")
     else:
+        # Production context is conservative: trigger rollback when user quality
+        # or operational SLOs fall below configured safety limits.
         if summary["request_count"] >= settings.rollback_min_requests:
             if summary["p95_latency_ms"] > settings.rollback_max_p95_ms:
                 reasons.append("production p95 latency above rollback threshold")
@@ -413,6 +470,14 @@ def versionz() -> VersionResponse:
     )
 
 
+@app.post("/admin/reload-model")
+def admin_reload_model() -> Dict[str, Any]:
+    # Promotion and rollback jobs call this after updating the deployed model
+    # artifact so serving can switch versions without manual pod restarts.
+    reload_backend()
+    return {"status": "ok", "reloaded": True, "model_version": settings.model_version}
+
+
 @app.get("/monitor/summary")
 def monitor_summary() -> Dict[str, Any]:
     return _monitor_summary()
@@ -422,6 +487,13 @@ def monitor_summary() -> Dict[str, Any]:
 def monitor_decision() -> Dict[str, Any]:
     summary = _monitor_summary()
     return _monitor_decision(summary)
+
+
+@app.post("/monitor/data-quality")
+def monitor_data_quality(payload: Dict[str, Any]) -> Dict[str, Any]:
+    # Data jobs post stage-level quality results here so serving owns one
+    # Prometheus scrape target for model, feedback, rollout, and data health.
+    return {"status": "ok", "saved": True, "event": _record_data_quality(payload)}
 
 
 @app.post("/feedback", response_model=FeedbackResponse)

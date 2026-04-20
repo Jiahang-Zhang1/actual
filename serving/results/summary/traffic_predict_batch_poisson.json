@@ -1,0 +1,20 @@
+{
+  "endpoint_url": "http://127.0.0.1:8000/predict_batch",
+  "backend_kind": "onnx_dynamic_quant",
+  "model_version": "v2_tfidf_linearsvc",
+  "code_version": "dev",
+  "model_path": "/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx",
+  "source_model_path": "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
+  "providers": [
+    "CPUExecutionProvider"
+  ],
+  "hardware": "host=2352c8261a2c; platform=Linux-6.12.54-linuxkit-aarch64-with-glibc2.41; cpus=12; memory_gb=7.65",
+  "request_rate_target": 3.0,
+  "distribution": "poisson",
+  "requests_sent": 155,
+  "p50_latency_ms": 15.3618,
+  "p95_latency_ms": 19.3635,
+  "p99_latency_ms": 24.6423,
+  "throughput_rps": 3.4148,
+  "error_rate": 0.0
+}

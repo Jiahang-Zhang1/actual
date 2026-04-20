@@ -126,11 +126,16 @@ app.get('/metrics', (_req, res) => {
 
 // The web frontend
 app.use((req, res, next) => {
+  const isDevelopment = process.env.NODE_ENV === 'development';
   res.set('Cross-Origin-Opener-Policy', 'same-origin');
   res.set('Cross-Origin-Embedder-Policy', 'require-corp');
   res.set(
     'Content-Security-Policy',
-    "default-src 'self' blob:; img-src 'self' blob: data:; script-src 'self' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src http: https:;",
+    // Development needs inline Vite preamble + websocket HMR; production keeps
+    // the stricter policy without unsafe-inline/ws allowances.
+    isDevelopment
+      ? "default-src 'self' blob:; img-src 'self' blob: data:; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src http: https: ws: wss:;"
+      : "default-src 'self' blob:; img-src 'self' blob: data:; script-src 'self' 'unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src http: https:;",
   );
   next();
 });

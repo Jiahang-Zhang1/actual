@@ -1,3 +1,5 @@
+# Rollout safety rules: detect production regressions for rollback and
+# candidate readiness signals for controlled promotion.
 groups:
   - name: smartcat-serving-rollout
     rules:
@@ -104,3 +106,23 @@ groups:
         annotations:
           summary: 'Candidate appears ready for promotion'
           description: 'Candidate satisfies request volume, latency, error, and acceptance thresholds.'
+
+      - alert: SmartcatDataQualityGateFailed
+        expr: actual_data_quality_pass == 0
+        for: 5m
+        labels:
+          severity: warning
+          stage: data
+        annotations:
+          summary: 'Data quality gate failed'
+          description: 'At least one ingestion, training-set, or online-drift data quality gate is failing.'
+
+      - alert: SmartcatOnlineDriftHigh
+        expr: actual_data_quality_metric{stage="online_drift",metric="drift_score"} > 0.20
+        for: 10m
+        labels:
+          severity: warning
+          stage: data
+        annotations:
+          summary: 'Online inference drift is above threshold'
+          description: 'Live inference feature distribution drift exceeded 0.20.'

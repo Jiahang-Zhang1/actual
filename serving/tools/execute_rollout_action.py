@@ -26,6 +26,8 @@ def run_command(command: list[str]) -> dict[str, Any]:
 
 
 def build_command(action: str, repo_root: Path, args) -> list[str]:
+    # Translate monitor decisions into concrete repo scripts so serving owns
+    # the trigger execution path for promotion/rollback.
     python_bin = sys.executable
     if action == "promote_candidate":
         return [
@@ -101,6 +103,10 @@ def main():
         default=0.55,
         help="Passed through to promote_model.py",
     )
+    parser.add_argument(
+        "--reload-url",
+        help="Optional serving admin URL to reload the model after a successful promote/rollback.",
+    )
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
@@ -121,17 +127,27 @@ def main():
     }
 
     if not command:
+        # "hold" and unknown actions intentionally do nothing.
         result["execution"] = {"status": "skipped", "reason": "no action required"}
         print(json.dumps(result, indent=2))
         return
 
     if not args.execute:
+        # Default safety mode: show exact command before mutating deployed model.
         result["execution"] = {"status": "dry_run", "reason": "pass --execute to run"}
         print(json.dumps(result, indent=2))
         return
 
     run_result = run_command(command)
     result["execution"] = run_result
+    if args.reload_url and run_result["returncode"] == 0:
+        reload_response = requests.post(args.reload_url, timeout=args.timeout_seconds)
+        result["reload"] = {
+            "url": args.reload_url,
+            "status_code": reload_response.status_code,
+            "body": reload_response.text,
+        }
+        reload_response.raise_for_status()
     print(json.dumps(result, indent=2))
 
     if run_result["returncode"] != 0:

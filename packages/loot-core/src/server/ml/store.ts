@@ -21,6 +21,14 @@ function parseTopCategories(topCategoriesJson: null | string | undefined) {
   }
 }
 
+function normalizeCategoryKey(value: null | string | undefined) {
+  return (value ?? '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
 export async function savePrediction(
   transactionId: string,
   prediction: MlPredictResponse,
@@ -84,11 +92,18 @@ export async function recordFeedback(args: {
   const top3CategoryIds = topCategories.map(
     (item: { category_id: string }) => item.category_id,
   );
+  const finalCategory = await db.getCategory(args.finalCategoryId);
+  const finalCategoryKeys = new Set([
+    normalizeCategoryKey(args.finalCategoryId),
+    normalizeCategoryKey(finalCategory?.name),
+  ]);
+  const matchesFinalCategory = (categoryIdOrName: string) =>
+    finalCategoryKeys.has(normalizeCategoryKey(categoryIdOrName));
 
   let status: MlPredictionStatus = 'overridden';
-  if (args.finalCategoryId === top1CategoryId) {
+  if (matchesFinalCategory(top1CategoryId)) {
     status = 'accepted_top1';
-  } else if (top3CategoryIds.includes(args.finalCategoryId)) {
+  } else if (top3CategoryIds.some(matchesFinalCategory)) {
     status = 'accepted_top3';
   }
 
@@ -133,11 +148,14 @@ export async function recordFeedback(args: {
   };
 
   try {
+    // Mirror feedback to serving so monitoring/alerts are based on live user
+    // behavior, while still keeping local SQLite as the source of truth.
     await sendFeedback({
       transactionId: args.transactionId,
       modelVersion: latest.model_version,
       predictedCategoryId: latest.predicted_category_id,
-      appliedCategoryId: args.finalCategoryId,
+      // Serving monitors label-level acceptance, while Actual stores category ids.
+      appliedCategoryId: finalCategory?.name ?? args.finalCategoryId,
       confidence: latest.confidence,
       candidateCategoryIds: top3CategoryIds,
     });

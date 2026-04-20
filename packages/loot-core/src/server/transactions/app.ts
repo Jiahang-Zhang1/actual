@@ -174,7 +174,8 @@ async function toPredictionCandidate(
     return null;
   }
 
-  // Only generate suggestions for uncategorized transactions.
+  // Only generate suggestions for uncategorized transactions to avoid
+  // overwriting explicit user categorization decisions.
   if (transaction.category) {
     return null;
   }
@@ -215,7 +216,7 @@ async function maybePredictForTransaction(args: {
 }) {
   try {
     const prediction = await predictCategory(args.payload);
-    if (!prediction || prediction.confidence < 0.35) {
+    if (!prediction) {
       return null;
     }
 
@@ -241,12 +242,14 @@ async function maybePredictForTransactions(
   }
 
   try {
+    // Use serving batch inference for throughput and consistent monitoring
+    // over multi-transaction updates/import flows.
     const predictions = await predictCategoryBatch(
       candidates.map(candidate => candidate.payload),
     );
     await Promise.all(
       predictions.map(async (prediction, index) => {
-        if (!prediction || prediction.confidence < 0.35) {
+        if (!prediction) {
           return;
         }
         await savePrediction(candidates[index].transactionId, prediction);
@@ -257,6 +260,8 @@ async function maybePredictForTransactions(
       'ML batch prediction failed; falling back to single prediction',
       err,
     );
+    // Keep graceful degradation: if batch endpoint is unavailable, preserve
+    // existing behavior by retrying item-by-item.
     await Promise.all(
       candidates.map(candidate => maybePredictForTransaction(candidate)),
     );

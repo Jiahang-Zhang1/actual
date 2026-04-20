@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: data-quality-monitor
+  labels:
+    app.kubernetes.io/name: data-quality-monitor
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: data-quality-monitor
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: data-quality
+              image: actualbudget/smartcat-mlops:latest
+              imagePullPolicy: IfNotPresent
+              workingDir: /workspace
+              env:
+                - name: SERVING_DATA_QUALITY_URL
+                  value: http://smartcat-serving:8000/monitor/data-quality
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -eu
+                  python data/data_quality_check.py ingestion \
+                    --input /workspace/artifacts/data/transactions_clean_v1.csv \
+                    --post-url "$SERVING_DATA_QUALITY_URL" \
+                    --output-json /workspace/artifacts/quality/ingestion.json || true
+                  python data/data_quality_check.py training-set \
+                    --train /workspace/artifacts/data/train.csv \
+                    --eval /workspace/artifacts/data/val.csv \
+                    --post-url "$SERVING_DATA_QUALITY_URL" \
+                    --output-json /workspace/artifacts/quality/training_set.json || true
+                  python data/data_quality_check.py online-drift \
+                    --reference /workspace/artifacts/data/train.csv \
+                    --inference /workspace/artifacts/data/online_features.csv \
+                    --post-url "$SERVING_DATA_QUALITY_URL" \
+                    --output-json /workspace/artifacts/quality/online_drift.json || true
+              volumeMounts:
+                - name: ml-artifacts
+                  mountPath: /workspace/artifacts
+          volumes:
+            - name: ml-artifacts
+              persistentVolumeClaim:
+                claimName: ml-artifacts

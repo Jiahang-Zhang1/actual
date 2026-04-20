@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ml-retrain-evaluate-promote
+  labels:
+    app.kubernetes.io/name: ml-retrain-evaluate-promote
+spec:
+  schedule: "0 */6 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: ml-retrain-evaluate-promote
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: pipeline
+              image: actualbudget/smartcat-mlops:latest
+              imagePullPolicy: IfNotPresent
+              workingDir: /workspace
+              env:
+                - name: SERVING_DATA_QUALITY_URL
+                  value: http://smartcat-serving:8000/monitor/data-quality
+              command: ["python"]
+              args:
+                - scripts/run_mlops_pipeline.py
+                - --workspace-dir
+                - /workspace/artifacts/pipeline
+                - --deployed-dir
+                - /workspace/artifacts/deployed
+                - --archive-dir
+                - /workspace/artifacts/archive
+                - --data-quality-post-url
+                - http://smartcat-serving:8000/monitor/data-quality
+                - --reload-url
+                - http://smartcat-serving:8000/admin/reload-model
+                - --synthetic-bootstrap
+              volumeMounts:
+                - name: ml-artifacts
+                  mountPath: /workspace/artifacts
+          volumes:
+            - name: ml-artifacts
+              persistentVolumeClaim:
+                claimName: ml-artifacts

@@ -1,0 +1,60 @@
+name: Smart Transaction MLOps Automation
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 */6 * * *"
+
+jobs:
+  retrain-evaluate-promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ML dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r training/requirements.txt
+          pip install requests
+
+      - name: Run retraining, evaluation, registration, and promotion gates
+        run: |
+          python scripts/run_mlops_pipeline.py \
+            --synthetic-bootstrap \
+            --workspace-dir artifacts/ci-mlops \
+            --deployed-dir artifacts/deployed \
+            --archive-dir artifacts/archive
+
+      - name: Upload model and rollout evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: smart-transaction-mlops-evidence
+          path: |
+            artifacts/ci-mlops
+            artifacts/deployed
+            artifacts/archive/last_decision.json
+
+  serving-rollout-trigger:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install rollout dependencies
+        run: python -m pip install requests
+
+      - name: Dry-run serving promotion/rollback trigger
+        run: |
+          python serving/tools/execute_rollout_action.py \
+            --monitor-url "${{ vars.SERVING_MONITOR_DECISION_URL || 'http://localhost:8000/monitor/decision' }}"
+        continue-on-error: true

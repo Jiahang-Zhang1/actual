@@ -12,6 +12,8 @@ const ML_REQUEST_TIMEOUT_MS = Number(
   process.env.ACTUAL_ML_SERVICE_TIMEOUT_MS || 2500,
 );
 
+// Normalize user-provided text fields before sending to serving to avoid
+// oversized payloads and incidental whitespace variance.
 function sanitizeText(value?: null | string, maxLength: number = 512) {
   return (value ?? '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
@@ -31,6 +33,8 @@ function toRequestBody(payload: MlPredictRequest) {
   };
 }
 
+// Guard the HTTP contract so callers always receive a top-k shape that the
+// frontend badge/popover logic can render safely.
 function parsePredictResponse(response: unknown): MlPredictResponse {
   const parsed = response as MlPredictResponse;
   if (!parsed || !Array.isArray(parsed.top_categories)) {
@@ -99,6 +103,8 @@ export async function predictCategoryBatch(
     .map((body, index) => ({ body, index }))
     .filter(({ body }) => Boolean(body.transaction_description));
 
+  // Keep output cardinality equal to input cardinality so transaction-level
+  // callers can map predictions back by original index.
   const predictions: Array<MlPredictResponse | null> = payloads.map(() => null);
   if (indexedValidBodies.length === 0) {
     return predictions;
@@ -128,6 +134,8 @@ export async function predictCategoryBatch(
     );
   }
 
+  // The serving endpoint returns only valid items. Rehydrate sparse results
+  // into the original request order expected by callers.
   data.items.forEach((item, itemIndex) => {
     const originalIndex = indexedValidBodies[itemIndex].index;
     predictions[originalIndex] = parsePredictResponse(item);
@@ -137,6 +145,7 @@ export async function predictCategoryBatch(
 }
 
 export async function mlHealth() {
+  // Support both modern (/healthz) and legacy (/health) serving images.
   const healthzRes = await fetchWithTimeout(`${ML_SERVICE_URL}/healthz`);
   if (healthzRes.ok) {
     return healthzRes.json();

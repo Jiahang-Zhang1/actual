@@ -24,6 +24,7 @@ import { applyChanges } from '@actual-app/core/shared/util';
 import type { IntegerAmount } from '@actual-app/core/shared/util';
 import type {
   AccountEntity,
+  CategoryEntity,
   CategoryGroupEntity,
   NewRuleEntity,
   PayeeEntity,
@@ -310,39 +311,330 @@ class AccountInternal extends PureComponent<
   unlisten?: () => void;
   dispatchSelected?: (action: Actions) => void;
 
+  buildPredictionPayload = (transaction: TransactionEntity) => {
+    const payeeName = this.props.payees.find(
+      payee => payee.id === transaction.payee,
+    )?.name;
+    const accountName = this.props.accounts.find(
+      account => account.id === transaction.account,
+    )?.name;
+    const description =
+      payeeName ||
+      transaction.imported_payee ||
+      transaction.notes ||
+      accountName ||
+      'unknown transaction';
+
+    return {
+      transactionId: transaction.id,
+      transactionDescription: description,
+      country: 'unknown',
+      currency: 'unknown',
+      amount:
+        typeof transaction.amount === 'number' ? transaction.amount : null,
+      transactionDate: transaction.date || null,
+      accountId: transaction.account || null,
+      notes: transaction.notes || null,
+      importedDescription: transaction.imported_payee || null,
+    };
+  };
+
+  normalizeCategoryName = (value: string) =>
+    value
+      .replace(/&/g, 'and')
+      .replace(/[^a-zA-Z0-9]+/g, ' ')
+      .trim()
+      .toLowerCase();
+
+  getCategoryCandidates = (): CategoryEntity[] =>
+    this.props.categoryGroups.flatMap(group => group.categories ?? []);
+
+  resolveMlCategoryId = (categoryIdOrName: string) => {
+    const categories = this.getCategoryCandidates();
+    const exactIdMatch = categories.find(
+      category => category.id === categoryIdOrName,
+    );
+    if (exactIdMatch) {
+      return exactIdMatch.id;
+    }
+
+    const normalizedPrediction = this.normalizeCategoryName(categoryIdOrName);
+    const exactNameMatch = categories.find(
+      category =>
+        this.normalizeCategoryName(category.name) === normalizedPrediction,
+    );
+    if (exactNameMatch) {
+      return exactNameMatch.id;
+    }
+
+    // Keep the original label when the budget does not contain a matching
+    // category yet, so the UI can still explain the model output.
+    return categoryIdOrName;
+  };
+
+  normalizeMlPredictionCategories = (
+    prediction: MlPrediction | null,
+  ): MlPrediction | null => {
+    if (!prediction) {
+      return null;
+    }
+
+    const topCategories = this.getTopCategories(prediction)
+      .slice(0, 3)
+      .map(item => ({
+        ...item,
+        category_id: this.resolveMlCategoryId(item.category_id),
+      }));
+
+    if (topCategories.length === 0) {
+      return null;
+    }
+
+    return {
+      ...prediction,
+      predicted_category_id:
+        topCategories[0]?.category_id ??
+        this.resolveMlCategoryId(prediction.predicted_category_id),
+      top_categories: topCategories,
+    };
+  };
+
+  toMlPrediction = (
+    transactionId: string,
+    result: unknown,
+  ): MlPrediction | null => {
+    const parsed = result as
+      | {
+          model_version?: string;
+          predicted_category_id?: string;
+          confidence?: number;
+          top_categories?: Array<{
+            category_id?: string;
+            score?: number;
+          }>;
+        }
+      | null
+      | undefined;
+
+    if (
+      !parsed ||
+      typeof parsed.model_version !== 'string' ||
+      typeof parsed.predicted_category_id !== 'string' ||
+      typeof parsed.confidence !== 'number' ||
+      !Array.isArray(parsed.top_categories)
+    ) {
+      return null;
+    }
+
+    const topCategories = parsed.top_categories
+      .filter(
+        (item): item is { category_id: string; score: number } =>
+          !!item &&
+          typeof item.category_id === 'string' &&
+          typeof item.score === 'number',
+      )
+      .slice(0, 3);
+
+    if (topCategories.length === 0) {
+      return null;
+    }
+
+    return this.normalizeMlPredictionCategories({
+      transaction_id: transactionId,
+      model_version: parsed.model_version,
+      predicted_category_id: parsed.predicted_category_id,
+      confidence: parsed.confidence,
+      top_categories: topCategories,
+    });
+  };
+
+  isMlPrediction = (value: unknown): value is MlPrediction => {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+
+    return (
+      'model_version' in value &&
+      typeof value.model_version === 'string' &&
+      'predicted_category_id' in value &&
+      typeof value.predicted_category_id === 'string' &&
+      'confidence' in value &&
+      typeof value.confidence === 'number' &&
+      (('top_categories' in value && Array.isArray(value.top_categories)) ||
+        ('top_categories_json' in value &&
+          typeof value.top_categories_json === 'string'))
+    );
+  };
+
   getPrediction = async (
     transactionId: string,
   ): Promise<MlPrediction | null> => {
     try {
-      const result = await send('ml-get-latest-prediction', transactionId);
-      return result ?? null;
+      const result: unknown = await send(
+        'ml-get-latest-prediction',
+        transactionId,
+      );
+      return this.normalizeMlPredictionCategories(
+        this.isMlPrediction(result) ? result : null,
+      );
     } catch (e) {
       console.error('Failed to get ML prediction', e);
       return null;
     }
   };
 
-  refreshMlPredictions = async (transactions: TransactionEntity[]) => {
-    const ids = transactions
-      .filter(t => t && t.id && !t.is_child)
-      .map(t => t.id);
+  getRealtimePrediction = async (
+    transaction: TransactionEntity,
+  ): Promise<MlPrediction | null> => {
+    try {
+      // If local cache misses, ask serving directly so the dedicated AI column
+      // can still show top-k candidates for every visible transaction.
+      const result = (await send('ml-predict-category', {
+        transactionId: transaction.id,
+        payload: this.buildPredictionPayload(transaction),
+      })) as unknown;
 
-    if (ids.length === 0) {
+      return this.toMlPrediction(transaction.id, result);
+    } catch (e) {
+      console.error('Failed to get realtime ML prediction', e);
+      return null;
+    }
+  };
+
+  getRealtimePredictionsBatch = async (
+    transactions: TransactionEntity[],
+  ): Promise<Record<string, MlPrediction | null>> => {
+    const candidates = transactions.filter(
+      transaction => transaction && transaction.id,
+    );
+    if (candidates.length === 0) {
+      return {};
+    }
+
+    const initialById = Object.fromEntries(
+      candidates.map(transaction => [transaction.id, null]),
+    );
+
+    try {
+      // Batch prediction is preferred so large account tables do not lose
+      // suggestions due per-row request bursts.
+      const results = (await send('ml-predict-category-batch', {
+        items: candidates.map(transaction => ({
+          transactionId: transaction.id,
+          payload: this.buildPredictionPayload(transaction),
+        })),
+      })) as Array<{
+        transactionId?: string;
+        prediction?: unknown;
+      }>;
+
+      if (!Array.isArray(results)) {
+        return initialById;
+      }
+
+      return results.reduce<Record<string, MlPrediction | null>>(
+        (acc, item) => {
+          if (!item || !item.transactionId || !(item.transactionId in acc)) {
+            return acc;
+          }
+
+          acc[item.transactionId] = this.toMlPrediction(
+            item.transactionId,
+            item.prediction,
+          );
+          return acc;
+        },
+        initialById,
+      );
+    } catch (e) {
+      console.error('Failed to get batch realtime ML predictions', e);
+      return initialById;
+    }
+  };
+
+  refreshMlPredictions = async (transactions: TransactionEntity[]) => {
+    const candidates = transactions.filter(
+      transaction => transaction && transaction.id,
+    );
+
+    if (candidates.length === 0) {
       this.setState({ mlPredictionsById: {} });
       return;
     }
 
     this.setState({ mlPredictionsLoading: true });
 
-    const entries = await Promise.all(
-      ids.map(async id => {
-        const prediction = await this.getPrediction(id);
-        return [id, prediction] as const;
+    const cachedEntries = await Promise.all(
+      candidates.map(async transaction => {
+        return [
+          transaction.id,
+          await this.getPrediction(transaction.id),
+        ] as const;
       }),
     );
 
+    const predictionsById = Object.fromEntries(cachedEntries);
+    const missingTransactions = candidates.filter(transaction => {
+      const prediction = predictionsById[transaction.id];
+      return !prediction || this.getTopCategories(prediction).length === 0;
+    });
+
+    if (missingTransactions.length > 0) {
+      const batchPredictionsById =
+        await this.getRealtimePredictionsBatch(missingTransactions);
+
+      await Promise.all(
+        missingTransactions.map(async transaction => {
+          if (batchPredictionsById[transaction.id]) {
+            predictionsById[transaction.id] =
+              batchPredictionsById[transaction.id];
+            return;
+          }
+
+          predictionsById[transaction.id] =
+            (await this.getRealtimePrediction(transaction)) ?? null;
+        }),
+      );
+    }
+
+    const autoCategoryUpdates = candidates
+      .filter(
+        transaction =>
+          !transaction.category &&
+          !transaction.is_child &&
+          !transaction.is_parent,
+      )
+      .map(transaction => {
+        const topCategory = this.getTopCategories(
+          predictionsById[transaction.id],
+        )[0];
+        return topCategory
+          ? {
+              id: transaction.id,
+              category: topCategory.category_id,
+            }
+          : null;
+      })
+      .filter(
+        (
+          update,
+        ): update is {
+          id: TransactionEntity['id'];
+          category: string;
+        } => update !== null,
+      );
+
+    if (autoCategoryUpdates.length > 0) {
+      // Auto-apply the highest-confidence category for uncategorized rows so
+      // Actual's native uncategorized counter matches the AI-assisted table.
+      await send('transactions-batch-update', {
+        updated: autoCategoryUpdates,
+      });
+      await this.refetchTransactions();
+    }
+
     this.setState({
-      mlPredictionsById: Object.fromEntries(entries),
+      mlPredictionsById: predictionsById,
       mlPredictionsLoading: false,
     });
   };
@@ -1946,7 +2238,7 @@ class AccountInternal extends PureComponent<
                   getMlSuggestion={(transactionId: string) => {
                     const prediction =
                       this.state.mlPredictionsById[transactionId];
-                    if (!prediction || prediction.confidence < 0.35) {
+                    if (!prediction) {
                       return null;
                     }
 

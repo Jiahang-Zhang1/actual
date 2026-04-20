@@ -55,10 +55,12 @@ function UncategorizedButton() {
       buttonVariant="bare"
       to="/categories/uncategorized"
       style={{
-        color: theme.errorText,
+        // AI suggestions make this an informational review queue, not an urgent error.
+        color: theme.pageTextSubdued,
+        fontSize: 13,
       }}
     >
-      <Trans count={count}>{{ count }} uncategorized transactions</Trans>
+      <Trans count={count}>AI review: {{ count }}</Trans>
     </Link>
   );
 }
