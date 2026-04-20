@@ -524,7 +524,8 @@ function getCategoryDisplayName(
   categoryId: string,
   suggestion?: MlSuggestion | null,
 ) {
-  const categoryName = getCategoriesById(categoryGroups)[categoryId]?.name;
+  const categoriesById = getCategoriesById(categoryGroups);
+  const categoryName = categoriesById[categoryId]?.name;
   if (categoryName) {
     return categoryName;
   }
@@ -532,13 +533,26 @@ function getCategoryDisplayName(
   const matchingSuggestion = suggestion?.topCategories.find(
     item => item.category_id === categoryId,
   );
-  if (matchingSuggestion?.category_name) {
-    return matchingSuggestion.category_name;
+  if (matchingSuggestion) {
+    return (
+      matchingSuggestion.category_name ||
+      categoriesById[matchingSuggestion.category_id]?.name ||
+      matchingSuggestion.category_id
+    );
+  }
+
+  const topSuggestion = suggestion?.topCategories[0];
+  if (topSuggestion) {
+    return (
+      topSuggestion.category_name ||
+      categoriesById[topSuggestion.category_id]?.name ||
+      topSuggestion.category_id
+    );
   }
 
   // Imported income/deposit rows can carry an Actual category id before the
   // visible category cache can resolve it; show the model label instead of a raw UUID.
-  return suggestion?.topCategories[0]?.category_name || categoryId;
+  return categoryId;
 }
 
 function getCompactCategoryName(categoryName: string) {
