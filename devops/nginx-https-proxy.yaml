@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: actual-nginx-https-config
+  namespace: actual-budget
+data:
+  default.conf: |
+    server {
+      listen 443 ssl;
+      server_name _;
+
+      ssl_certificate /etc/nginx/tls/tls.crt;
+      ssl_certificate_key /etc/nginx/tls/tls.key;
+      ssl_protocols TLSv1.2 TLSv1.3;
+
+      location / {
+        proxy_pass http://actual-budget.actual-budget.svc.cluster.local:8083;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Actual needs cross-origin isolation for SharedArrayBuffer. Hide any
+        # upstream copy first so the browser receives each required header once.
+        proxy_hide_header Cross-Origin-Opener-Policy;
+        proxy_hide_header Cross-Origin-Embedder-Policy;
+        add_header Cross-Origin-Opener-Policy "same-origin" always;
+        add_header Cross-Origin-Embedder-Policy "require-corp" always;
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: actual-nginx-https-proxy
+  namespace: actual-budget
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: actual-nginx-https-proxy
+  template:
+    metadata:
+      labels:
+        app: actual-nginx-https-proxy
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: https
+              containerPort: 443
+          volumeMounts:
+            - name: nginx-config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+            - name: nginx-tls
+              mountPath: /etc/nginx/tls
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: nginx-config
+          configMap:
+            name: actual-nginx-https-config
+        - name: nginx-tls
+          secret:
+            secretName: actual-nginx-tls
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: actual-nginx-https-proxy
+  namespace: actual-budget
+spec:
+  # Public browser entrypoint. Access https://129.114.26.190:30443 or
+  # https://129.114.26.190.sslip.io:30443 after accepting the self-signed cert.
+  type: NodePort
+  selector:
+    app: actual-nginx-https-proxy
+  ports:
+    - name: https
+      port: 443
+      targetPort: 443
+      nodePort: 30443
