@@ -1,0 +1,48 @@
+{
+  "schema_version": "2026-04-23",
+  "description": "Canonical seed dataset schema for Smart Transaction Categorization training and evaluation.",
+  "required_columns": [
+    "transaction_description",
+    "category",
+    "country",
+    "currency"
+  ],
+  "optional_columns": [
+    "amount",
+    "transaction_date",
+    "notes",
+    "imported_description",
+    "account_id"
+  ],
+  "category_taxonomy": {
+    "version": "2026-04-23",
+    "canonical_categories": [
+      "Charity & Donations",
+      "Entertainment & Recreation",
+      "Financial Services",
+      "Food & Dining",
+      "Government & Legal",
+      "Healthcare & Medical",
+      "Income",
+      "Shopping & Retail",
+      "Transportation",
+      "Utilities & Services"
+    ]
+  },
+  "notes": [
+    "Rows may be sparse; transaction_description can be short when notes or imported_description carry meaning.",
+    "Labels should already be aligned to the canonical deployed taxonomy before training.",
+    "Unknown or user-specific categories should be normalized or excluded before final training splits."
+  ],
+  "example_row": {
+    "transaction_description": "VERIZON AUTOPAY",
+    "category": "Utilities & Services",
+    "country": "US",
+    "currency": "USD",
+    "amount": -78.44,
+    "transaction_date": "2026-04-23",
+    "notes": "monthly phone bill",
+    "imported_description": "VERIZON AUTOPAY",
+    "account_id": "checking-account"
+  }
+}

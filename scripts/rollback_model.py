@@ -51,6 +51,37 @@ def set_mlflow_alias(metadata: dict, alias: str | None) -> dict:
     }
 
 
+def tag_mlflow_version(metadata: dict, role: str) -> dict:
+    model_name = metadata.get("mlflow_model_name")
+    model_version = metadata.get("mlflow_model_version")
+    if not model_name or not model_version:
+        return {"updated": False, "reason": "missing mlflow model metadata"}
+    try:
+        from mlflow.tracking import MlflowClient
+
+        client = MlflowClient()
+        client.set_model_version_tag(
+            name=str(model_name),
+            version=str(model_version),
+            key="actual.role",
+            value=role,
+        )
+    except Exception as exc:
+        return {
+            "updated": False,
+            "reason": f"failed to tag MLflow version: {exc}",
+            "model_name": str(model_name),
+            "model_version": str(model_version),
+            "role": role,
+        }
+    return {
+        "updated": True,
+        "model_name": str(model_name),
+        "model_version": str(model_version),
+        "role": role,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Rollback to the most recent archived model.")
     parser.add_argument("--archive-dir", required=True)
@@ -108,13 +139,18 @@ def main():
         return
 
     latest = candidates[0]
+    current_metadata = load_metadata(deployed_dir)
     metadata = load_metadata(latest)
     if deployed_dir.exists():
         shutil.rmtree(deployed_dir)
     shutil.copytree(latest, deployed_dir)
     result = {
         "rolled_back_to": str(latest),
+        "restored_metadata": metadata,
+        "replaced_metadata": current_metadata,
         "mlflow_alias": set_mlflow_alias(metadata, args.mlflow_target_alias),
+        "production_role_tag": tag_mlflow_version(metadata, "production"),
+        "replaced_role_tag": tag_mlflow_version(current_metadata, "replaced"),
     }
     print(json.dumps(result, indent=2))
 

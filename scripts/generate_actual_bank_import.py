@@ -5,9 +5,15 @@ import argparse
 import csv
 import json
 import random
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from serving.app.taxonomy import CANONICAL_CATEGORIES
 
 MERCHANTS = [
     ("Starbucks Store 1458 New York NY", "Food & Dining", -6.45),
@@ -43,6 +49,8 @@ NOTES = {
     "Charity & Donations": ["donation", "charity", "nonprofit"],
     "Government & Legal": ["tax", "government", "legal"],
 }
+
+assert sorted(NOTES) == sorted(CANONICAL_CATEGORIES)
 
 
 def build_rows(row_count: int, seed: int) -> list[dict[str, str]]:

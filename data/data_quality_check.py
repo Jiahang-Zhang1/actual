@@ -11,25 +11,16 @@ from typing import Any
 import pandas as pd
 import requests
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
-VALID_CATEGORIES = {
-    "Food & Dining",
-    "Transportation",
-    "Shopping & Retail",
-    "Entertainment & Recreation",
-    "Healthcare & Medical",
-    "Healthcare",
-    "Utilities & Services",
-    "Bills & Utilities",
-    "Financial Services",
-    "Income",
-    "Travel",
-    "Other",
-    "Charity & Donations",
-    "Government & Legal",
-    "Transfer",
-    "Groceries",
-}
+from serving.app.taxonomy import (
+    CANONICAL_CATEGORIES,
+    CATEGORY_ALIASES,
+    canonicalize_category,
+    taxonomy_manifest,
+)
 
 
 def read_frame(path: str | Path) -> pd.DataFrame:
@@ -90,26 +81,44 @@ def check_ingestion_quality(filepath: str | Path) -> dict[str, Any]:
         print(f"[PASS] Row count: {len(df)}")
 
     invalid_categories: list[str] = []
+    alias_categories: list[str] = []
+    normalized_distribution: dict[str, int] = {}
     if "category" in df.columns:
-        invalid_categories = sorted(
+        normalized_categories = df["category"].map(canonicalize_category)
+        alias_categories = sorted(
             str(value)
-            for value in df.loc[~df["category"].isin(VALID_CATEGORIES), "category"]
+            for value in df.loc[
+                df["category"].astype(str).isin(CATEGORY_ALIASES),
+                "category",
+            ]
             .dropna()
             .unique()
+        )
+        invalid_categories = sorted(
+            str(value)
+            for value in df.loc[normalized_categories.isna(), "category"].dropna().unique()
         )
         if invalid_categories:
             print(f"[WARN] Unknown categories found: {invalid_categories[:5]}")
             issues.append(f"unknown categories: {invalid_categories[:10]}")
         else:
             print("[PASS] All categories valid")
+        normalized_distribution = {
+            label: int(count)
+            for label, count in normalized_categories.dropna().value_counts().sort_index().items()
+        }
 
     metrics = {
         "row_count": int(len(df)),
         "required_columns": len(missing_cols) == 0,
         "missing_column_count": len(missing_cols),
         "null_counts": null_counts,
+        "taxonomy_version": taxonomy_manifest()["taxonomy_version"],
+        "canonical_category_count": len(CANONICAL_CATEGORIES),
+        "alias_category_count": len(alias_categories),
         "unknown_categories": invalid_categories[:5],
         "invalid_category_count": len(invalid_categories),
+        "normalized_category_distribution": normalized_distribution,
         "description_null_rate": float(df.get("transaction_description", pd.Series(dtype=float)).isna().mean())
         if "transaction_description" in df.columns
         else 1.0,
@@ -135,8 +144,19 @@ def check_training_set_quality(train_path: str | Path, eval_path: str | Path | N
     overlap_ratio = 0.0
     min_label_ratio = 0.0
     train_ratio = 0.0
+    unsupported_label_count = 0
     if "category" in train_df.columns:
-        label_distribution = train_df["category"].value_counts(normalize=True)
+        normalized_train_categories = train_df["category"].map(canonicalize_category)
+        unsupported_label_count = int(normalized_train_categories.isna().sum())
+        if unsupported_label_count:
+            unknown_labels = sorted(
+                str(value)
+                for value in train_df.loc[normalized_train_categories.isna(), "category"]
+                .dropna()
+                .unique()
+            )
+            issues.append(f"train contains unsupported labels: {unknown_labels[:10]}")
+        label_distribution = normalized_train_categories.dropna().value_counts(normalize=True)
         min_label_ratio = float(label_distribution.min()) if not label_distribution.empty else 0.0
         if min_label_ratio < 0.01:
             issues.append(f"severe class imbalance, min label ratio={min_label_ratio:.3f}")
@@ -174,6 +194,8 @@ def check_training_set_quality(train_path: str | Path, eval_path: str | Path | N
         "overlap_ratio": round(float(overlap_ratio), 6),
         "min_label_ratio": round(float(min_label_ratio), 6),
         "train_ratio": round(float(train_ratio), 6),
+        "taxonomy_version": taxonomy_manifest()["taxonomy_version"],
+        "unsupported_label_count": unsupported_label_count,
     }
     return result("training_set", not issues, metrics, issues)
 

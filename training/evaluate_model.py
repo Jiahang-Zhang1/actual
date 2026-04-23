@@ -1,5 +1,6 @@
 import argparse
 import json
+import sys
 from pathlib import Path
 from typing import Iterable
 
@@ -8,7 +9,13 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import accuracy_score, classification_report, f1_score
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
 import train_model
+from serving.app.postprocess import apply_confidence_policy
+from serving.app.taxonomy import taxonomy_manifest
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,6 +35,13 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--high-confidence-threshold", type=float, default=0.70)
     return parser.parse_args()
+
+
+def load_metadata(model_dir: Path) -> dict:
+    metadata_path = model_dir / "metadata.json"
+    if not metadata_path.exists():
+        return {}
+    return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
 def load_label_mapping(path: str | None) -> dict[str, str]:
@@ -190,6 +204,7 @@ def compute_split_metrics(
     model,
     mapping: dict[str, str],
     high_confidence_threshold: float,
+    metadata: dict,
 ) -> tuple[dict, dict[str, dict], pd.DataFrame]:
     if df.empty:
         empty_metrics = {
@@ -207,10 +222,22 @@ def compute_split_metrics(
         return empty_metrics, {}, pd.DataFrame()
 
     frame = train_model.build_model_frame(df)
-    probabilities = train_model.model_score_matrix(model, frame)
-    pred_labels = list(model.predict(frame))
+    raw_probabilities = train_model.model_score_matrix(model, frame)
     true_labels = df["category"].astype(str).tolist()
     classes = list(model.named_steps["clf"].classes_)
+    probabilities = np.vstack(
+        [
+            apply_confidence_policy(
+                raw_probabilities[row_index],
+                classes,
+                description=train_model.choose_description(row) or "manual entry",
+                description_source=train_model.description_source(row),
+                metadata=metadata,
+            )
+            for row_index, (_, row) in enumerate(df.iterrows())
+        ]
+    )
+    pred_labels = [classes[int(index)] for index in np.argmax(probabilities, axis=1)]
     top3_indices, top3_labels, top3_scores = topk_lists(probabilities, classes, limit=3)
     confidences = [scores[0] if scores else 0.0 for scores in top3_scores]
 
@@ -301,8 +328,9 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     model = joblib.load(model_dir / "model.joblib")
-    val_df = train_model.read_dataset(args.val_dataset)
-    test_df = train_model.read_dataset(args.test_dataset)
+    metadata = load_metadata(model_dir)
+    val_df = train_model.prepare_labeled_dataset(train_model.read_dataset(args.val_dataset), "validation")
+    test_df = train_model.prepare_labeled_dataset(train_model.read_dataset(args.test_dataset), "test")
     mapping = load_label_mapping(args.label_mapping_file)
 
     split_summaries = {}
@@ -315,6 +343,7 @@ def main() -> None:
             model,
             mapping,
             args.high_confidence_threshold,
+            metadata,
         )
         predictions["split"] = split_name
         split_summaries[split_name] = metrics
@@ -327,6 +356,11 @@ def main() -> None:
     test_metrics["test"] = split_summaries["test"]
     test_metrics["label_mapping_file"] = args.label_mapping_file
     test_metrics["high_confidence_threshold"] = args.high_confidence_threshold
+    test_metrics["taxonomy_version"] = metadata.get(
+        "taxonomy",
+        taxonomy_manifest(),
+    ).get("taxonomy_version")
+    test_metrics["confidence_policy"] = metadata.get("confidence_policy", {})
 
     (output_dir / "metrics.json").write_text(json.dumps(test_metrics, indent=2), encoding="utf-8")
     (output_dir / "per_class_metrics.json").write_text(

@@ -1,9 +1,16 @@
 import argparse
 import json
 import sqlite3
+import sys
 from pathlib import Path
 
 import pandas as pd
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from serving.app.taxonomy import canonicalize_category, taxonomy_manifest
 
 
 VALID_FEEDBACK_STATUSES = ("accepted_top1", "accepted_top3", "overridden")
@@ -24,7 +31,8 @@ def load_feedback_dataframe(conn: sqlite3.Connection) -> pd.DataFrame:
     )
     SELECT
       lf.transaction_id,
-      lf.final_category_id AS category,
+      COALESCE(c.name, lf.final_category_id) AS category,
+      lf.final_category_id AS final_category_id,
       lf.feedback_status,
       lf.model_version,
       lf.created_at,
@@ -41,6 +49,8 @@ def load_feedback_dataframe(conn: sqlite3.Connection) -> pd.DataFrame:
       ON t.id = lf.transaction_id
     LEFT JOIN payees p
       ON p.id = t.payee
+    LEFT JOIN categories c
+      ON c.id = lf.final_category_id
     WHERE lf.feedback_status IN ({",".join(["?"] * len(VALID_FEEDBACK_STATUSES))})
     """
     return pd.read_sql_query(query, conn, params=list(VALID_FEEDBACK_STATUSES))
@@ -54,15 +64,28 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["transaction_description"] = (
         df["transaction_description"].fillna("").astype(str).str.strip()
     )
+    df["category_raw"] = df["category"].fillna("").astype(str).str.strip()
+    df["category"] = df["category"].map(canonicalize_category)
 
     df["event_time"] = pd.to_datetime(df["created_at"], errors="coerce")
     fallback_time = pd.to_datetime(df["transaction_date"], errors="coerce")
     df["event_time"] = df["event_time"].fillna(fallback_time)
 
+    unsupported_mask = df["category"].isna()
+    dropped_rows = int(unsupported_mask.sum())
+    dropped_labels = sorted(
+        value
+        for value in df.loc[unsupported_mask, "category_raw"].dropna().unique().tolist()
+        if value
+    )
+    df = df.loc[~unsupported_mask].copy()
+
     df = df.dropna(subset=["event_time"]).sort_values("event_time").reset_index(drop=True)
 
     # Keep the latest feedback per transaction after sorting to avoid duplicates.
     df = df.drop_duplicates(subset=["transaction_id"], keep="last").reset_index(drop=True)
+    df.attrs["dropped_unsupported_rows"] = dropped_rows
+    df.attrs["dropped_unsupported_labels"] = dropped_labels
     return df
 
 
@@ -136,6 +159,15 @@ def main():
     manifest = {
         "source_db_path": args.db_path,
         "row_count": len(df),
+        "taxonomy_version": taxonomy_manifest()["taxonomy_version"],
+        "dropped_unsupported_rows": int(df.attrs.get("dropped_unsupported_rows", 0)),
+        "dropped_unsupported_labels": df.attrs.get("dropped_unsupported_labels", []),
+        "category_distribution": {
+            str(label): int(count)
+            for label, count in df["category"].value_counts().sort_index().items()
+        }
+        if "category" in df.columns
+        else {},
         "splits": {
             "train": len(train_df),
             "val": len(val_df),

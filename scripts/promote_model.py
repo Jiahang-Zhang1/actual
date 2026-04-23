@@ -23,6 +23,19 @@ def load_metadata(model_dir: Path) -> dict:
     return json.loads(metadata_path.read_text(encoding="utf-8"))
 
 
+def load_gate_result(model_dir: Path) -> dict:
+    gate_path = model_dir / "gate_result.json"
+    if not gate_path.exists():
+        return {"checked": False, "passed": None, "reason": "missing gate_result.json"}
+    payload = json.loads(gate_path.read_text(encoding="utf-8"))
+    return {
+        "checked": True,
+        "passed": bool(payload.get("passed", False)),
+        "failures": payload.get("failures", []),
+        "thresholds": payload.get("thresholds", {}),
+    }
+
+
 def set_mlflow_alias(metadata: dict, alias: str | None) -> dict:
     model_name = metadata.get("mlflow_model_name")
     model_version = metadata.get("mlflow_model_version")
@@ -62,6 +75,37 @@ def set_mlflow_alias(metadata: dict, alias: str | None) -> dict:
     }
 
 
+def tag_mlflow_version(metadata: dict, role: str) -> dict:
+    model_name = metadata.get("mlflow_model_name")
+    model_version = metadata.get("mlflow_model_version")
+    if not model_name or not model_version:
+        return {"updated": False, "reason": "missing mlflow model metadata"}
+    try:
+        from mlflow.tracking import MlflowClient
+
+        client = MlflowClient()
+        client.set_model_version_tag(
+            name=str(model_name),
+            version=str(model_version),
+            key="actual.role",
+            value=role,
+        )
+    except Exception as exc:
+        return {
+            "updated": False,
+            "reason": f"failed to tag MLflow version: {exc}",
+            "model_name": str(model_name),
+            "model_version": str(model_version),
+            "role": role,
+        }
+    return {
+        "updated": True,
+        "model_name": str(model_name),
+        "model_version": str(model_version),
+        "role": role,
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description="Promote or reject a challenger model.")
     parser.add_argument("--challenger-dir", required=True)
@@ -83,15 +127,19 @@ def main():
     archive_dir.mkdir(parents=True, exist_ok=True)
 
     challenger_metrics = load_metrics(challenger_dir)
+    challenger_gate = load_gate_result(challenger_dir)
     champion_metrics = (
         load_metrics(deployed_dir)
         if (deployed_dir / "metrics.json").exists()
         else {args.metric: 0.0, "macro_f1": 0.0}
     )
     challenger_metadata = load_metadata(challenger_dir)
+    champion_metadata = load_metadata(deployed_dir)
 
     challenger_ok = (
-        challenger_metrics.get("top3_accuracy", 0.0) >= args.min_top3_accuracy
+        (not challenger_gate["checked"] or bool(challenger_gate["passed"]))
+        and challenger_metrics.get("top1_accuracy", 0.0) >= 0.0
+        and challenger_metrics.get("top3_accuracy", 0.0) >= args.min_top3_accuracy
         and challenger_metrics.get("macro_f1", 0.0) >= args.min_macro_f1
         and challenger_metrics.get(args.metric, 0.0) >= champion_metrics.get(args.metric, 0.0)
     )
@@ -101,20 +149,28 @@ def main():
         "metric": args.metric,
         "challenger_metrics": challenger_metrics,
         "champion_metrics": champion_metrics,
+        "challenger_gate": challenger_gate,
         "promoted": challenger_ok,
         "challenger_metadata": challenger_metadata,
+        "champion_metadata": champion_metadata,
         "mlflow_alias": {"updated": False, "reason": "challenger not promoted"},
+        "archive_target": None,
+        "archive_mlflow": {"updated": False, "reason": "challenger not promoted"},
     }
 
     if challenger_ok:
         if deployed_dir.exists():
             archived_target = archive_dir / datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
             shutil.copytree(deployed_dir, archived_target)
+            decision["archive_target"] = str(archived_target)
+            decision["archive_mlflow"] = set_mlflow_alias(champion_metadata, "previous-production")
+            decision["archive_role_tag"] = tag_mlflow_version(champion_metadata, "archived")
         copy_model_dir(challenger_dir, deployed_dir)
         decision["mlflow_alias"] = set_mlflow_alias(
             challenger_metadata,
             args.mlflow_target_alias,
         )
+        decision["production_role_tag"] = tag_mlflow_version(challenger_metadata, "production")
 
     (archive_dir / "last_decision.json").write_text(json.dumps(decision, indent=2))
     print(json.dumps(decision, indent=2))

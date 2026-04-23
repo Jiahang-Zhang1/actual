@@ -14,7 +14,8 @@ from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import get_settings
-from app.feature_adapter import build_feature_frame
+from app.feature_adapter import build_description, build_feature_frame, description_source
+from app.postprocess import apply_confidence_policy, load_bundle_metadata
 from app.runtime import (
     get_backend,
     refresh_backend_if_model_changed,
@@ -439,12 +440,19 @@ def _predict_many(
         raise ValueError("items must not be empty")
 
     _current_settings()
+    metadata = load_bundle_metadata(_current_settings().model_bundle_dir)
     backend = get_backend()
     frame = build_feature_frame(items)
     output = backend.predict(frame)
     responses = [
         _response_from_row(
-            output.probabilities[idx],
+            apply_confidence_policy(
+                output.probabilities[idx],
+                output.classes,
+                description=build_description(items[idx]),
+                description_source=description_source(items[idx]),
+                metadata=metadata,
+            ),
             output.classes,
             record_observability=record_observability,
         )

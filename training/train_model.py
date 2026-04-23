@@ -2,6 +2,7 @@ import argparse
 import json
 import os
 import platform
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -19,12 +20,41 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.svm import LinearSVC
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from serving.app.postprocess import apply_confidence_policy
+from serving.app.taxonomy import canonicalize_category, taxonomy_manifest
+
 
 def read_dataset(path: str) -> pd.DataFrame:
     dataset_path = Path(path)
     if dataset_path.suffix == ".csv":
         return pd.read_csv(dataset_path)
     return pd.read_parquet(dataset_path)
+
+
+def prepare_labeled_dataset(df: pd.DataFrame, dataset_name: str) -> pd.DataFrame:
+    if df.empty:
+        raise ValueError(f"{dataset_name} dataset is empty.")
+    if "category" not in df.columns:
+        return df
+
+    prepared = df.copy()
+    prepared["category_raw"] = prepared["category"].fillna("").astype(str).str.strip()
+    prepared["category"] = prepared["category"].map(canonicalize_category)
+    unsupported = prepared["category"].isna()
+    if unsupported.any():
+        unknown_labels = sorted(
+            value
+            for value in prepared.loc[unsupported, "category_raw"].dropna().unique().tolist()
+            if value
+        )
+        raise ValueError(
+            f"{dataset_name} dataset contains unsupported labels: {unknown_labels[:10]}"
+        )
+    return prepared
 
 
 def amount_bucket(value) -> str:
@@ -231,6 +261,125 @@ def model_score_matrix(model, frame: pd.DataFrame) -> np.ndarray:
     raise RuntimeError("Candidate model exposes neither predict_proba nor decision_function.")
 
 
+def multiclass_nll(probabilities: np.ndarray, labels: pd.Series, classes: list[str]) -> float:
+    label_to_index = {label: idx for idx, label in enumerate(classes)}
+    target_indices = np.array([label_to_index[str(label)] for label in labels], dtype=int)
+    clipped = np.clip(np.asarray(probabilities, dtype=float), 1e-9, 1.0)
+    row_indices = np.arange(len(target_indices))
+    return float(-np.mean(np.log(clipped[row_indices, target_indices])))
+
+
+def expected_calibration_error(
+    probabilities: np.ndarray,
+    labels: pd.Series,
+    classes: list[str],
+    bins: int = 10,
+) -> float:
+    matrix = np.asarray(probabilities, dtype=float)
+    if len(matrix) == 0:
+        return 0.0
+
+    label_to_index = {label: idx for idx, label in enumerate(classes)}
+    target_indices = np.array([label_to_index[str(label)] for label in labels], dtype=int)
+    pred_indices = np.argmax(matrix, axis=1)
+    confidences = np.max(matrix, axis=1)
+    correct = (pred_indices == target_indices).astype(float)
+
+    ece = 0.0
+    bin_edges = np.linspace(0.0, 1.0, bins + 1)
+    for lower, upper in zip(bin_edges[:-1], bin_edges[1:]):
+        mask = (confidences >= lower) & (
+            confidences <= upper if np.isclose(upper, 1.0) else confidences < upper
+        )
+        if not np.any(mask):
+            continue
+        bin_accuracy = float(np.mean(correct[mask]))
+        bin_confidence = float(np.mean(confidences[mask]))
+        ece += abs(bin_accuracy - bin_confidence) * (np.sum(mask) / len(matrix))
+    return float(ece)
+
+
+def multiclass_brier_score(probabilities: np.ndarray, labels: pd.Series, classes: list[str]) -> float:
+    matrix = np.asarray(probabilities, dtype=float)
+    if len(matrix) == 0:
+        return 0.0
+    label_to_index = {label: idx for idx, label in enumerate(classes)}
+    truth = np.zeros_like(matrix)
+    for row_index, label in enumerate(labels):
+        truth[row_index, label_to_index[str(label)]] = 1.0
+    return float(np.mean(np.sum((matrix - truth) ** 2, axis=1)))
+
+
+def fit_temperature(probabilities: np.ndarray, labels: pd.Series, classes: list[str]) -> tuple[float, dict]:
+    candidate_temperatures = np.concatenate(
+        [
+            np.linspace(0.7, 2.5, 37),
+            np.linspace(2.5, 5.0, 11),
+        ]
+    )
+
+    best_temperature = 1.0
+    best_nll = multiclass_nll(probabilities, labels, classes)
+    for temperature in candidate_temperatures:
+        candidate = apply_confidence_policy(
+            probabilities[0],
+            classes,
+            description="calibration placeholder",
+            description_source="transaction_description",
+            metadata={"confidence_policy": {"temperature": float(temperature)}},
+        )
+        del candidate
+        scaled = np.vstack(
+            [
+                apply_confidence_policy(
+                    row,
+                    classes,
+                    description="calibration placeholder",
+                    description_source="transaction_description",
+                    metadata={"confidence_policy": {"temperature": float(temperature)}},
+                )
+                for row in probabilities
+            ]
+        )
+        nll = multiclass_nll(scaled, labels, classes)
+        if nll < best_nll:
+            best_nll = nll
+            best_temperature = float(temperature)
+
+    before = {
+        "nll": multiclass_nll(probabilities, labels, classes),
+        "ece": expected_calibration_error(probabilities, labels, classes),
+        "brier": multiclass_brier_score(probabilities, labels, classes),
+    }
+    after_matrix = np.vstack(
+        [
+            apply_confidence_policy(
+                row,
+                classes,
+                description="calibration placeholder",
+                description_source="transaction_description",
+                metadata={"confidence_policy": {"temperature": best_temperature}},
+            )
+            for row in probabilities
+        ]
+    )
+    after = {
+        "nll": multiclass_nll(after_matrix, labels, classes),
+        "ece": expected_calibration_error(after_matrix, labels, classes),
+        "brier": multiclass_brier_score(after_matrix, labels, classes),
+    }
+    return best_temperature, {"before": before, "after": after}
+
+
+def default_register_model_name() -> str | None:
+    configured = os.environ.get("MLFLOW_REGISTER_MODEL_NAME")
+    if configured:
+        return configured
+    if os.environ.get("MLFLOW_TRACKING_URI"):
+        return "actual-smart-transaction-categorizer"
+    return None
+
+
 def evaluate_model(model, df: pd.DataFrame) -> dict:
     frame = build_model_frame(df)
     probabilities = model_score_matrix(model, frame)
@@ -266,6 +415,11 @@ def register_model_if_configured(
     model_uri = f"runs:/{run_id}/sk_model"
     registered_model = mlflow.register_model(model_uri=model_uri, name=model_name)
     client = MlflowClient()
+    client.set_registered_model_alias(
+        name=model_name,
+        alias="candidate",
+        version=str(registered_model.version),
+    )
     client.set_model_version_tag(
         name=model_name,
         version=registered_model.version,
@@ -293,11 +447,26 @@ def register_model_if_configured(
                 key=f"actual.{split_name}.{metric_name}",
                 value=str(value),
             )
+    if metadata.get("taxonomy", {}).get("taxonomy_version"):
+        client.set_model_version_tag(
+            name=model_name,
+            version=registered_model.version,
+            key="actual.taxonomy_version",
+            value=str(metadata["taxonomy"]["taxonomy_version"]),
+        )
+    if metadata.get("confidence_policy", {}).get("temperature"):
+        client.set_model_version_tag(
+            name=model_name,
+            version=registered_model.version,
+            key="actual.temperature",
+            value=str(metadata["confidence_policy"]["temperature"]),
+        )
     return {
         "mlflow_run_id": run_id,
         "mlflow_model_name": model_name,
         "mlflow_model_version": str(registered_model.version),
         "mlflow_model_uri": model_uri,
+        "mlflow_candidate_alias": "candidate",
     }
 
 
@@ -311,7 +480,7 @@ def main():
     parser.add_argument("--run-name", default="smart-transaction-categorizer")
     parser.add_argument(
         "--register-model-name",
-        default=os.environ.get("MLFLOW_REGISTER_MODEL_NAME"),
+        default=default_register_model_name(),
         help="Optional MLflow registered model name for challenger registration.",
     )
     parser.add_argument("--max-word-features", type=int, default=25000)
@@ -330,9 +499,13 @@ def main():
     train_df = read_dataset(args.train_dataset)
     val_df = read_dataset(args.val_dataset)
     test_df = read_dataset(args.test_dataset)
+    train_df = prepare_labeled_dataset(train_df, "train")
+    val_df = prepare_labeled_dataset(val_df, "validation")
+    test_df = prepare_labeled_dataset(test_df, "test")
 
     if args.external_dataset:
         external_df = read_dataset(args.external_dataset)
+        external_df = prepare_labeled_dataset(external_df, "external")
         train_df = pd.concat([external_df, train_df], ignore_index=True, sort=False)
     else:
         external_df = None
@@ -414,15 +587,52 @@ def main():
         selected_family = selected_record["model_family"]
         val_metrics = selected_record["validation"]
         test_metrics = selected_record["test"]
+        classes = list(model.named_steps["clf"].classes_)
+        validation_probabilities = model_score_matrix(model, build_model_frame(val_df))
+        temperature, calibration_summary = fit_temperature(
+            validation_probabilities,
+            val_df["category"].astype(str),
+            classes,
+        )
+        confidence_policy = {
+            "method": "temperature_keyword_fallback",
+            "temperature": round(float(temperature), 6),
+            "keyword_fallback": {
+                "enabled": True,
+                "blend_weight": 0.35,
+                "max_primary_confidence": 0.58,
+                "allowed_sources": [
+                    "transaction_description",
+                    "transaction_description_clean",
+                    "merchant_text",
+                    "imported_description",
+                    "notes",
+                    "derived",
+                ],
+            },
+            "validation_calibration": calibration_summary,
+        }
         mlflow.log_params(
             {
                 "candidate_model_families": ",".join(families),
                 "selected_model_family": selected_family,
                 "model_selection_policy": "max validation top3_accuracy, macro_f1, top1_accuracy",
+                "confidence_policy_method": confidence_policy["method"],
+                "confidence_temperature": confidence_policy["temperature"],
             }
         )
         mlflow.log_metrics({f"val_{k}": v for k, v in val_metrics.items() if k != "row_count"})
         mlflow.log_metrics({f"test_{k}": v for k, v in test_metrics.items() if k != "row_count"})
+        mlflow.log_metrics(
+            {
+                "calibration_val_nll_before": calibration_summary["before"]["nll"],
+                "calibration_val_nll_after": calibration_summary["after"]["nll"],
+                "calibration_val_ece_before": calibration_summary["before"]["ece"],
+                "calibration_val_ece_after": calibration_summary["after"]["ece"],
+                "calibration_val_brier_before": calibration_summary["before"]["brier"],
+                "calibration_val_brier_after": calibration_summary["after"]["brier"],
+            }
+        )
         mlflow.log_dict(candidate_records, artifact_file="candidate_models.json")
 
         model_version = datetime.now(timezone.utc).strftime("v%Y%m%d%H%M%S")
@@ -434,14 +644,21 @@ def main():
             "model_family": selected_family,
             "candidate_models": candidate_records,
             "model_selection_policy": "max validation top3_accuracy, macro_f1, top1_accuracy",
+            "taxonomy": taxonomy_manifest(),
+            "confidence_policy": confidence_policy,
             "metrics": {
                 "validation": val_metrics,
                 "test": test_metrics,
             },
-            "classes": list(model.named_steps["clf"].classes_),
+            "classes": classes,
         }
         (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
         (output_dir / "metrics.json").write_text(json.dumps(test_metrics, indent=2))
+        (output_dir / "label_taxonomy.json").write_text(
+            json.dumps(metadata["taxonomy"], indent=2),
+            encoding="utf-8",
+        )
+        (output_dir / "register_result.json").write_text(json.dumps({}, indent=2), encoding="utf-8")
 
         mlflow.log_artifacts(str(output_dir), artifact_path="serving_bundle")
         mlflow.sklearn.log_model(sk_model=model, artifact_path="sk_model")
@@ -453,7 +670,12 @@ def main():
         if registry_metadata:
             metadata.update(registry_metadata)
             (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2))
+            (output_dir / "register_result.json").write_text(
+                json.dumps(registry_metadata, indent=2),
+                encoding="utf-8",
+            )
             mlflow.log_dict(metadata, artifact_file="serving_bundle/metadata.json")
+            mlflow.log_dict(registry_metadata, artifact_file="serving_bundle/register_result.json")
 
         print(json.dumps({"model_version": model_version, "test_metrics": test_metrics}, indent=2))
 
