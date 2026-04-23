@@ -232,6 +232,8 @@ def compute_split_metrics(
                 classes,
                 description=train_model.choose_description(row) or "manual entry",
                 description_source=train_model.description_source(row),
+                amount=row.get("amount"),
+                account_id=row.get("account_id"),
                 metadata=metadata,
             )
             for row_index, (_, row) in enumerate(df.iterrows())

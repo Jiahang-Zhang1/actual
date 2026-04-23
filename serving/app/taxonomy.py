@@ -146,6 +146,143 @@ KEYWORD_RULES = {
     ],
 }
 
+ACCOUNT_HINT_RULES = {
+    "Charity & Donations": [
+        "charity",
+        "donation",
+        "donor",
+        "fundraiser",
+        "nonprofit",
+    ],
+    "Entertainment & Recreation": [
+        "entertainment",
+        "movie",
+        "music",
+        "recreation",
+        "streaming",
+    ],
+    "Financial Services": [
+        "brokerage",
+        "investment",
+        "investments",
+        "retirement",
+        "savings",
+    ],
+    "Food & Dining": [
+        "cafe",
+        "coffee",
+        "food",
+        "grocery",
+        "groceries",
+        "restaurant",
+    ],
+    "Government & Legal": [
+        "court",
+        "government",
+        "legal",
+        "tax",
+    ],
+    "Healthcare & Medical": [
+        "doctor",
+        "health",
+        "medical",
+        "pharmacy",
+    ],
+    "Income": [
+        "income",
+        "payroll",
+        "salary",
+    ],
+    "Shopping & Retail": [
+        "retail",
+        "shopping",
+        "store",
+    ],
+    "Transportation": [
+        "auto",
+        "fuel",
+        "gas",
+        "parking",
+        "transit",
+        "transport",
+        "travel",
+    ],
+    "Utilities & Services": [
+        "cable",
+        "electric",
+        "internet",
+        "mobile",
+        "phone",
+        "service",
+        "utility",
+        "utilities",
+        "water",
+    ],
+}
+
+SPARSE_NO_SIGNAL_PRIOR = {
+    "Shopping & Retail": 0.34,
+    "Food & Dining": 0.27,
+    "Utilities & Services": 0.17,
+    "Transportation": 0.12,
+    "Entertainment & Recreation": 0.10,
+}
+
+SPARSE_AMOUNT_PRIORS = {
+    "positive:micro": {
+        "Financial Services": 0.46,
+        "Income": 0.34,
+        "Government & Legal": 0.12,
+        "Utilities & Services": 0.08,
+    },
+    "positive:small": {
+        "Income": 0.48,
+        "Financial Services": 0.30,
+        "Government & Legal": 0.12,
+        "Utilities & Services": 0.10,
+    },
+    "positive:medium": {
+        "Income": 0.58,
+        "Financial Services": 0.24,
+        "Government & Legal": 0.10,
+        "Utilities & Services": 0.08,
+    },
+    "positive:large": {
+        "Income": 0.68,
+        "Financial Services": 0.18,
+        "Government & Legal": 0.08,
+        "Utilities & Services": 0.06,
+    },
+    "negative:micro": {
+        "Food & Dining": 0.30,
+        "Entertainment & Recreation": 0.24,
+        "Healthcare & Medical": 0.20,
+        "Transportation": 0.14,
+        "Financial Services": 0.12,
+    },
+    "negative:small": {
+        "Shopping & Retail": 0.28,
+        "Transportation": 0.22,
+        "Healthcare & Medical": 0.18,
+        "Food & Dining": 0.16,
+        "Charity & Donations": 0.16,
+    },
+    "negative:medium": {
+        "Utilities & Services": 0.28,
+        "Government & Legal": 0.22,
+        "Financial Services": 0.18,
+        "Shopping & Retail": 0.16,
+        "Charity & Donations": 0.16,
+    },
+    "negative:large": {
+        "Government & Legal": 0.34,
+        "Financial Services": 0.22,
+        "Utilities & Services": 0.18,
+        "Shopping & Retail": 0.14,
+        "Charity & Donations": 0.12,
+    },
+}
+
 
 def normalize_label_key(value: object | None) -> str:
     return re.sub(r"[^a-z0-9]+", " ", str(value or "").strip().casefold()).strip()
@@ -182,6 +319,9 @@ def taxonomy_manifest() -> dict:
         "canonical_categories": CANONICAL_CATEGORIES,
         "aliases": CATEGORY_ALIASES,
         "keyword_rule_categories": sorted(KEYWORD_RULES),
+        "account_hint_rule_categories": sorted(ACCOUNT_HINT_RULES),
+        "sparse_no_signal_prior_categories": sorted(SPARSE_NO_SIGNAL_PRIOR),
+        "sparse_amount_prior_keys": sorted(SPARSE_AMOUNT_PRIORS),
     }
 
 
@@ -193,6 +333,22 @@ def keyword_rule_match(description: object | None) -> str | None:
     best_match: tuple[int, str] | None = None
     for category in CANONICAL_CATEGORIES:
         for keyword in KEYWORD_RULES.get(category, []):
+            normalized_keyword = normalize_label_key(keyword)
+            if normalized_keyword and normalized_keyword in text:
+                score = len(normalized_keyword)
+                if best_match is None or score > best_match[0]:
+                    best_match = (score, category)
+    return None if best_match is None else best_match[1]
+
+
+def account_hint_match(account_id: object | None) -> str | None:
+    text = normalize_label_key(account_id)
+    if not text:
+        return None
+
+    best_match: tuple[int, str] | None = None
+    for category in CANONICAL_CATEGORIES:
+        for keyword in ACCOUNT_HINT_RULES.get(category, []):
             normalized_keyword = normalize_label_key(keyword)
             if normalized_keyword and normalized_keyword in text:
                 score = len(normalized_keyword)

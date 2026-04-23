@@ -1,0 +1,99 @@
+name: Sparse Input Regression
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - serving
+    paths:
+      - '.github/workflows/sparse-input-regression.yml'
+      - 'serving/**'
+      - 'training/**'
+      - 'scripts/generate_sparse_input_matrix.py'
+      - 'scripts/test_sparse_input_matrix.py'
+  pull_request:
+    paths:
+      - '.github/workflows/sparse-input-regression.yml'
+      - 'serving/**'
+      - 'training/**'
+      - 'scripts/generate_sparse_input_matrix.py'
+      - 'scripts/test_sparse_input_matrix.py'
+
+jobs:
+  sparse-input-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MODEL_BUNDLE_DIR: ${{ github.workspace }}/serving/runtime/deployed
+      RUNTIME_DIR: ${{ github.workspace }}/artifacts/ci-runtime
+      SERVICE_HOST: 127.0.0.1
+      SERVICE_PORT: 8000
+      WEB_CONCURRENCY: 1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install serving regression dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r serving/requirements.txt
+
+      - name: Generate sparse matrix smoke set
+        run: |
+          python scripts/generate_sparse_input_matrix.py \
+            --rows-per-category 1 \
+            --json-output artifacts/test-data/sparse_input_matrix_ci.json \
+            --csv-output artifacts/test-data/sparse_input_matrix_ci_manifest.csv
+
+      - name: Run local sparse regression tests
+        run: |
+          pytest \
+            serving/tests/test_sparse_input_generation.py \
+            serving/tests/test_feature_adapter.py \
+            serving/tests/test_api_contract.py \
+            serving/tests/test_taxonomy_postprocess.py
+
+      - name: Start local SmartCat serving
+        run: |
+          mkdir -p artifacts/ci-runtime
+          python -m uvicorn app.main:app --app-dir serving --host 127.0.0.1 --port 8000 > artifacts/ci-runtime/sparse-input-serving.log 2>&1 &
+          echo $! > artifacts/ci-runtime/sparse-input-serving.pid
+
+      - name: Wait for serving health
+        run: |
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/readyz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Serving did not become ready" >&2
+          cat artifacts/ci-runtime/sparse-input-serving.log >&2 || true
+          exit 1
+
+      - name: Run sparse matrix regression over HTTP
+        run: |
+          python scripts/test_sparse_input_matrix.py \
+            --base-url http://127.0.0.1:8000 \
+            --matrix-json artifacts/test-data/sparse_input_matrix_ci.json \
+            --mode both \
+            --batch-size 25 \
+            --traffic-source sparse-input-ci \
+            --max-failures 0 \
+            --output-json artifacts/test-results/sparse_input_matrix_ci_summary.json \
+            --raw-output-json artifacts/test-results/sparse_input_matrix_ci_results.json
+
+      - name: Upload sparse regression artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sparse-input-regression
+          path: |
+            artifacts/test-data/sparse_input_matrix_ci.json
+            artifacts/test-data/sparse_input_matrix_ci_manifest.csv
+            artifacts/test-results/sparse_input_matrix_ci_summary.json
+            artifacts/test-results/sparse_input_matrix_ci_results.json
+            artifacts/ci-runtime/sparse-input-serving.log

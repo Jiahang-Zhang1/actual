@@ -25,7 +25,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from serving.app.postprocess import apply_confidence_policy
-from serving.app.taxonomy import canonicalize_category, taxonomy_manifest
+from serving.app.taxonomy import SPARSE_AMOUNT_PRIORS, SPARSE_NO_SIGNAL_PRIOR, canonicalize_category, taxonomy_manifest
 
 
 def read_dataset(path: str) -> pd.DataFrame:
@@ -595,7 +595,7 @@ def main():
             classes,
         )
         confidence_policy = {
-            "method": "temperature_keyword_fallback",
+            "method": "temperature_keyword_sparse_fallback",
             "temperature": round(float(temperature), 6),
             "keyword_fallback": {
                 "enabled": True,
@@ -609,6 +609,19 @@ def main():
                     "notes",
                     "derived",
                 ],
+            },
+            "sparse_fallback": {
+                "enabled": True,
+                "allowed_sources": ["derived"],
+                "blend_weight": 0.68,
+                "no_signal_blend_weight": 0.94,
+                "high_confidence_no_signal_blend_weight": 0.97,
+                "max_primary_confidence": 0.62,
+                "amount_prior_weight": 0.72,
+                "account_prior_weight": 0.25,
+                "default_prior_weight": 0.22,
+                "default_prior": SPARSE_NO_SIGNAL_PRIOR,
+                "amount_priors": SPARSE_AMOUNT_PRIORS,
             },
             "validation_calibration": calibration_summary,
         }

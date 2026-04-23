@@ -451,6 +451,8 @@ def _predict_many(
                 output.classes,
                 description=build_description(items[idx]),
                 description_source=description_source(items[idx]),
+                amount=items[idx].amount,
+                account_id=items[idx].account_id,
                 metadata=metadata,
             ),
             output.classes,
