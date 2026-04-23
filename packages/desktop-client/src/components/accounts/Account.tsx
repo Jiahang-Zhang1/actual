@@ -327,7 +327,7 @@ class AccountInternal extends PureComponent<
       transaction.imported_payee ||
       transaction.notes ||
       accountName ||
-      'unknown transaction';
+      'manual entry';
 
     return {
       transactionId: transaction.id,
@@ -396,7 +396,8 @@ class AccountInternal extends PureComponent<
       return null;
     }
 
-    const topCategories = this.getTopCategories(prediction)
+    const topCategories = [...this.getTopCategories(prediction)]
+      .sort((left, right) => right.score - left.score)
       .slice(0, 3)
       .map(item => {
         const resolved = this.resolveMlCategory(item.category_id);
@@ -416,6 +417,7 @@ class AccountInternal extends PureComponent<
       predicted_category_id:
         topCategories[0]?.category_id ??
         this.resolveMlCategoryId(prediction.predicted_category_id),
+      confidence: topCategories[0]?.score ?? prediction.confidence,
       top_categories: topCategories,
     };
   };

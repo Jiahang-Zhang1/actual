@@ -31,12 +31,17 @@ def weekday_token(value: str | None) -> str:
 
 
 def compute_features(transaction: dict[str, Any]) -> dict[str, Any]:
+    description = str(
+        transaction.get("transaction_description")
+        or transaction.get("transactionDescription")
+        or transaction.get("imported_description")
+        or transaction.get("importedDescription")
+        or transaction.get("notes")
+        or "manual entry"
+    ).strip()
+
     return {
-        "transaction_description": str(
-            transaction.get("transaction_description")
-            or transaction.get("transactionDescription")
-            or ""
-        ).strip(),
+        "transaction_description": description,
         "country": str(transaction.get("country") or "unknown").strip() or "unknown",
         "currency": str(transaction.get("currency") or "unknown").strip() or "unknown",
         "amount": transaction.get("amount"),

@@ -7,13 +7,43 @@ import pandas as pd
 from app.schemas import PredictRequest
 
 
+def _clean_text(value: object | None) -> str:
+    return str(value or "").strip()
+
+
 def choose_description(item: PredictRequest) -> str:
-    return (
-        item.transaction_description
-        or item.transaction_description_clean
-        or item.merchant_text
-        or ""
-    ).strip()
+    for value in (
+        item.transaction_description,
+        item.transaction_description_clean,
+        item.merchant_text,
+        item.imported_description,
+        item.notes,
+    ):
+        cleaned = _clean_text(value)
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def description_source(item: PredictRequest) -> str:
+    if _clean_text(item.transaction_description):
+        return "transaction_description"
+    if _clean_text(item.transaction_description_clean):
+        return "transaction_description_clean"
+    if _clean_text(item.merchant_text):
+        return "merchant_text"
+    if _clean_text(item.imported_description):
+        return "imported_description"
+    if _clean_text(item.notes):
+        return "notes"
+    return "derived"
+
+
+def build_description(item: PredictRequest) -> str:
+    description = choose_description(item)
+    if description:
+        return description
+    return "manual entry"
 
 
 def _amount_bucket(value: float | None) -> str:
@@ -42,7 +72,8 @@ def build_serving_feature_text(item: PredictRequest) -> str:
     # This mirrors training.build_model_frame so joblib, ONNX, and quantized
     # ONNX artifacts all receive the same production feature contract.
     parts = [
-        choose_description(item).lower(),
+        build_description(item).lower(),
+        f"description_source={description_source(item)}",
         f"country={(item.country or 'US').lower()}",
         f"currency={(item.currency or 'USD').lower()}",
         f"amount_bucket={_amount_bucket(item.amount)}",

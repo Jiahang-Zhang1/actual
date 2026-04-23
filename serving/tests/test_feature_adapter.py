@@ -38,3 +38,35 @@ def test_build_feature_frame_accepts_clean_description():
     description = frame.iloc[0]["transaction_description"]
     assert description.startswith("starbucks store 1458")
     assert "amount_bucket=unknown" in description
+
+
+def test_build_feature_frame_uses_notes_for_sparse_manual_entry():
+    frame = build_feature_frame(
+        [
+            PredictRequest(
+                notes="monthly phone bill",
+                currency="USD",
+                amount=78.44,
+            )
+        ]
+    )
+    description = frame.iloc[0]["transaction_description"]
+    assert description.startswith("monthly phone bill")
+    assert "description_source=notes" in description
+    assert "amount_bucket=small" in description
+
+
+def test_build_feature_frame_falls_back_to_manual_entry_when_text_is_missing():
+    frame = build_feature_frame(
+        [
+            PredictRequest(
+                account_id="checking-account",
+                currency="USD",
+                amount=24.99,
+            )
+        ]
+    )
+    description = frame.iloc[0]["transaction_description"]
+    assert description.startswith("manual entry")
+    assert "description_source=derived" in description
+    assert "amount_bucket=small" in description

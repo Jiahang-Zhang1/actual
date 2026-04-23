@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import argparse
 import random
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
+
+SERVING_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVING_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVING_ROOT))
 
 from tools.common import percentile, read_json, write_json
 
@@ -33,6 +38,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--distribution", choices=["constant", "poisson"], default="poisson")
     parser.add_argument("--max-workers", type=int, default=32)
     parser.add_argument("--timeout", type=float, default=10.0)
+    parser.add_argument(
+        "--traffic-source",
+        default="benchmark",
+        help="Synthetic source label for excluding benchmark traffic from online monitoring. Use an empty string to send live traffic.",
+    )
     parser.add_argument("--output-json", required=True)
     return parser.parse_args()
 
@@ -43,11 +53,22 @@ def version_info(base_url: str) -> dict:
     return response.json()
 
 
-def send_one(base_url: str, endpoint: str, payload: dict, timeout: float) -> dict:
+def benchmark_headers(traffic_source: str) -> dict[str, str]:
+    if not traffic_source:
+        return {}
+    return {"X-Actual-Traffic-Source": traffic_source}
+
+
+def send_one(base_url: str, endpoint: str, payload: dict, timeout: float, headers: dict[str, str]) -> dict:
     session = get_session()
     start = time.perf_counter()
     try:
-        response = session.post(f"{base_url.rstrip('/')}{endpoint}", json=payload, timeout=timeout)
+        response = session.post(
+            f"{base_url.rstrip('/')}{endpoint}",
+            json=payload,
+            timeout=timeout,
+            headers=headers or None,
+        )
         latency_ms = (time.perf_counter() - start) * 1000.0
         return {"ok": 200 <= response.status_code < 300, "status_code": response.status_code, "latency_ms": latency_ms}
     except Exception:
@@ -58,6 +79,7 @@ def send_one(base_url: str, endpoint: str, payload: dict, timeout: float) -> dic
 def main() -> None:
     args = parse_args()
     payload = read_json(args.request_json)
+    headers = benchmark_headers(args.traffic_source)
 
     futures = []
     start = time.perf_counter()
@@ -71,7 +93,7 @@ def main() -> None:
             if now < next_send:
                 time.sleep(next_send - now)
 
-            futures.append(executor.submit(send_one, args.base_url, args.endpoint, payload, args.timeout))
+            futures.append(executor.submit(send_one, args.base_url, args.endpoint, payload, args.timeout, headers))
             interval = (
                 1.0 / args.request_rate
                 if args.distribution == "constant"
@@ -97,6 +119,7 @@ def main() -> None:
         "hardware": version["hardware"],
         "request_rate_target": args.request_rate,
         "distribution": args.distribution,
+        "traffic_source": args.traffic_source,
         "requests_sent": len(records),
         "p50_latency_ms": round(percentile(latencies, 50), 4),
         "p95_latency_ms": round(percentile(latencies, 95), 4),

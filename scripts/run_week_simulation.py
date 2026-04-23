@@ -72,12 +72,19 @@ def wait_for_serving(serving_url: str, timeout_seconds: int) -> None:
     raise RuntimeError(f"Serving did not become ready: {serving_url}")
 
 
+def request_headers(traffic_source: str) -> dict[str, str] | None:
+    if not traffic_source:
+        return None
+    return {"X-Actual-Traffic-Source": traffic_source}
+
+
 def post_feedback(
     serving_url: str,
     transaction_id: str,
     response_item: dict[str, Any],
     top1_accept_rate: float,
     top3_accept_rate: float,
+    traffic_source: str,
 ) -> None:
     top_categories = response_item.get("top_categories", [])
     candidates = [str(item.get("category_id", "")) for item in top_categories if item.get("category_id")]
@@ -104,6 +111,7 @@ def post_feedback(
             "confidence": response_item.get("confidence"),
             "candidate_category_ids": candidates,
         },
+        headers=request_headers(traffic_source),
         timeout=10,
     ).raise_for_status()
 
@@ -116,6 +124,7 @@ def send_hour_of_traffic(
     batch_size: int,
     top1_accept_rate: float,
     top3_accept_rate: float,
+    traffic_source: str,
 ) -> dict[str, Any]:
     predicted_items = 0
     feedback_events = 0
@@ -124,6 +133,7 @@ def send_hour_of_traffic(
         response = requests.post(
             f"{serving_url}/predict_batch",
             json={"items": batch},
+            headers=request_headers(traffic_source),
             timeout=30,
         )
         response.raise_for_status()
@@ -137,6 +147,7 @@ def send_hour_of_traffic(
                 response_item,
                 top1_accept_rate,
                 top3_accept_rate,
+                traffic_source,
             )
             feedback_events += 1
     return {
@@ -175,6 +186,16 @@ def main() -> None:
     parser.add_argument("--batch-path", default="serving/runtime/week_simulation_batch.json")
     parser.add_argument("--training-path", default="artifacts/test-data/synthetic_training_transactions.csv")
     parser.add_argument("--log-path", default="artifacts/week-simulation/events.jsonl")
+    parser.add_argument(
+        "--summary-path",
+        default="",
+        help="Optional JSON summary output with final monitor summary and decision.",
+    )
+    parser.add_argument(
+        "--traffic-source",
+        default="",
+        help="Optional synthetic traffic label. Leave empty to count events as live traffic.",
+    )
     parser.add_argument("--skip-pipeline", action="store_true")
     args = parser.parse_args()
 
@@ -188,8 +209,12 @@ def main() -> None:
     wait_for_serving(args.serving_url, timeout_seconds=120)
 
     items = json.loads(batch_path.read_text(encoding="utf-8"))["items"]
+    started_at = time.perf_counter()
+    total_requests = 0
+    total_predicted_items = 0
+    total_feedback_events = 0
     for simulated_hour in range(1, args.simulated_hours + 1):
-        started_at = datetime.now(timezone.utc).isoformat()
+        event_started_at = datetime.now(timezone.utc).isoformat()
         traffic_result = send_hour_of_traffic(
             args.serving_url,
             items,
@@ -198,8 +223,12 @@ def main() -> None:
             args.batch_size,
             args.top1_accept_rate,
             args.top3_accept_rate,
+            args.traffic_source,
         )
-        event = {"ts": started_at, "type": "traffic", **traffic_result}
+        total_requests += int(traffic_result["requests"])
+        total_predicted_items += int(traffic_result["predicted_items"])
+        total_feedback_events += int(traffic_result["feedback_events"])
+        event = {"ts": event_started_at, "type": "traffic", **traffic_result}
         append_jsonl(log_path, event)
         print(json.dumps(event), flush=True)
 
@@ -249,6 +278,32 @@ def main() -> None:
             )
 
         time.sleep(max(args.seconds_per_hour, 0.0))
+
+    if args.summary_path:
+        monitor_summary = requests.get(f"{args.serving_url}/monitor/summary", timeout=10).json()
+        monitor_decision = requests.get(f"{args.serving_url}/monitor/decision", timeout=10).json()
+        summary_path = (repo / args.summary_path).resolve()
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary_path.write_text(
+            json.dumps(
+                {
+                    "serving_url": args.serving_url,
+                    "traffic_source": args.traffic_source,
+                    "simulated_hours": args.simulated_hours,
+                    "seconds_per_hour": args.seconds_per_hour,
+                    "requests_per_hour": args.requests_per_hour,
+                    "batch_size": args.batch_size,
+                    "total_requests": total_requests,
+                    "total_predicted_items": total_predicted_items,
+                    "total_feedback_events": total_feedback_events,
+                    "elapsed_seconds": round(time.perf_counter() - started_at, 4),
+                    "final_monitor_summary": monitor_summary,
+                    "final_monitor_decision": monitor_decision,
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
 
 
 if __name__ == "__main__":

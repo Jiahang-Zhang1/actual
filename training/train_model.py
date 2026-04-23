@@ -52,9 +52,42 @@ def weekday_token(value) -> str:
     return parsed.day_name().lower()
 
 
+def clean_text(value) -> str:
+    return str(value or "").strip()
+
+
+def choose_description(row: pd.Series) -> str:
+    for column in [
+        "transaction_description",
+        "transaction_description_clean",
+        "merchant_text",
+        "imported_description",
+        "notes",
+    ]:
+        cleaned = clean_text(row.get(column))
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def description_source(row: pd.Series) -> str:
+    for column in [
+        "transaction_description",
+        "transaction_description_clean",
+        "merchant_text",
+        "imported_description",
+        "notes",
+    ]:
+        if clean_text(row.get(column)):
+            return column
+    return "derived"
+
+
 def build_feature_text(row: pd.Series) -> str:
+    description = choose_description(row) or "manual entry"
     parts = [
-        str(row.get("transaction_description", "")).strip().lower(),
+        description.lower(),
+        f"description_source={description_source(row)}",
         f"country={str(row.get('country', 'unknown')).strip().lower() or 'unknown'}",
         f"currency={str(row.get('currency', 'unknown')).strip().lower() or 'unknown'}",
         f"amount_bucket={amount_bucket(row.get('amount'))}",

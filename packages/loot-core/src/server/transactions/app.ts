@@ -184,13 +184,17 @@ async function toPredictionCandidate(
     transaction.payee != null
       ? (await db.getPayee(transaction.payee))?.name
       : null;
+  const accountName =
+    transaction.account != null
+      ? (await db.getAccount(transaction.account))?.name
+      : null;
 
   const description =
-    payeeName || transaction.imported_payee || transaction.notes || '';
-
-  if (!description.trim()) {
-    return null;
-  }
+    payeeName ||
+    transaction.imported_payee ||
+    transaction.notes ||
+    accountName ||
+    'manual entry';
 
   const payload: MlPredictRequest = {
     transactionId: transaction.id,

@@ -6,20 +6,20 @@ groups:
     rules:
       - record: smartcat:request_rate_5m
         expr: |
-          sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m]))
+          sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch"}[5m]))
 
       - record: smartcat:error_rate_5m
         expr: |
-          sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+          sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
           /
-          clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+          clamp_min(sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
 
       - record: smartcat:p95_latency_ms_5m
         expr: |
           1000 * histogram_quantile(
             0.95,
             sum by (le) (
-              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+              rate(live_http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
             )
           )
 
@@ -28,7 +28,7 @@ groups:
           1000 * histogram_quantile(
             0.50,
             sum by (le) (
-              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+              rate(live_http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
             )
           )
 
@@ -67,7 +67,7 @@ groups:
           1000 * histogram_quantile(
             0.95,
             sum by (le) (
-              rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+              rate(live_http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
             )
           ) > 250
         for: 10m
@@ -80,9 +80,9 @@ groups:
 
       - alert: SmartcatServingHighErrorRate
         expr: |
-          sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+          sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
           /
-          clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+          clamp_min(sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
           > 0.02
         for: 10m
         labels:
@@ -130,20 +130,20 @@ groups:
 
       - alert: SmartcatCandidatePromotionReady
         expr: |
-          (sum(increase(http_requests_total{handler=~"/predict|/predict_batch"}[60m])) >= 100)
+          (sum(increase(live_http_requests_total{handler=~"/predict|/predict_batch"}[60m])) >= 100)
           and (sum(increase(feedback_total[60m])) >= 20)
           and (
             1000 * histogram_quantile(
               0.95,
               sum by (le) (
-                rate(http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
+                rate(live_http_request_duration_seconds_bucket{handler=~"/predict|/predict_batch"}[5m])
               )
             ) <= 100
           )
           and (
-            sum(rate(http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
+            sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch",status=~"5.."}[5m]))
             /
-            clamp_min(sum(rate(http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
+            clamp_min(sum(rate(live_http_requests_total{handler=~"/predict|/predict_batch"}[5m])), 1e-9)
             <= 0.01
           )
           and (

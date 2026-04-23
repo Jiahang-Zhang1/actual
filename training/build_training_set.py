@@ -54,7 +54,6 @@ def prepare_dataframe(df: pd.DataFrame) -> pd.DataFrame:
     df["transaction_description"] = (
         df["transaction_description"].fillna("").astype(str).str.strip()
     )
-    df = df[df["transaction_description"] != ""].copy()
 
     df["event_time"] = pd.to_datetime(df["created_at"], errors="coerce")
     fallback_time = pd.to_datetime(df["transaction_date"], errors="coerce")

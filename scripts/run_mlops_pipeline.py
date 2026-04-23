@@ -53,6 +53,13 @@ def main() -> None:
     parser.add_argument("--synthetic-bootstrap", action="store_true")
     parser.add_argument("--min-top3-accuracy", type=float, default=0.70)
     parser.add_argument("--min-macro-f1", type=float, default=0.55)
+    parser.add_argument("--min-top1-accuracy", type=float, default=0.60)
+    parser.add_argument("--min-high-confidence-precision", type=float, default=0.75)
+    parser.add_argument("--min-mapped-top1-accuracy", type=float, default=0.60)
+    parser.add_argument("--per-class-recall-min", type=float, default=0.30)
+    parser.add_argument("--per-class-support-min", type=int, default=10)
+    parser.add_argument("--high-confidence-threshold", type=float, default=0.70)
+    parser.add_argument("--label-mapping-file")
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
@@ -109,6 +116,56 @@ def main() -> None:
             str(challenger_dir),
             "--run-name",
             "automated-retrain",
+        ],
+        repo,
+    )
+
+    run(
+        [
+            sys.executable,
+            "training/evaluate_model.py",
+            "--model-dir",
+            str(challenger_dir),
+            "--val-dataset",
+            str(val_csv),
+            "--test-dataset",
+            str(test_csv),
+            "--high-confidence-threshold",
+            str(args.high_confidence_threshold),
+            *(
+                ["--label-mapping-file", str((repo / args.label_mapping_file).resolve())]
+                if args.label_mapping_file
+                else []
+            ),
+        ],
+        repo,
+    )
+
+    run(
+        [
+            sys.executable,
+            "training/gate_model.py",
+            "--metrics-file",
+            str(challenger_dir / "metrics.json"),
+            "--per-class-metrics-file",
+            str(challenger_dir / "per_class_metrics.json"),
+            "--split",
+            "test",
+            "--min-top1-accuracy",
+            str(args.min_top1_accuracy),
+            "--min-top3-accuracy",
+            str(args.min_top3_accuracy),
+            "--min-macro-f1",
+            str(args.min_macro_f1),
+            "--min-high-confidence-precision",
+            str(args.min_high_confidence_precision),
+            "--min-mapped-top1-accuracy",
+            str(args.min_mapped_top1_accuracy),
+            "--per-class-recall-min",
+            str(args.per_class_recall_min),
+            "--per-class-support-min",
+            str(args.per_class_support_min),
+            "--fail-on-error",
         ],
         repo,
     )

@@ -10,7 +10,33 @@ class _Model(BaseModel):
 
 
 class PredictRequest(_Model):
-    transaction_description: Optional[str] = Field(default=None, min_length=1)
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+                    "country": "US",
+                    "currency": "USD",
+                    "amount": 5.75,
+                    "notes": "coffee",
+                },
+                {
+                    "notes": "monthly phone bill",
+                    "currency": "USD",
+                    "amount": 78.44,
+                },
+                {
+                    "account_id": "checking-account",
+                    "currency": "USD",
+                    "amount": 24.99,
+                },
+            ]
+        },
+    )
+
+    transaction_description: Optional[str] = None
     transaction_description_clean: Optional[str] = None
     merchant_text: Optional[str] = None
 
@@ -27,6 +53,29 @@ class PredictRequest(_Model):
 
 
 class BatchPredictRequest(_Model):
+    model_config = ConfigDict(
+        protected_namespaces=(),
+        extra="ignore",
+        json_schema_extra={
+            "examples": [
+                {
+                    "items": [
+                        {
+                            "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+                            "country": "US",
+                            "currency": "USD",
+                        },
+                        {
+                            "notes": "uber ride home",
+                            "currency": "USD",
+                            "amount": 18.2,
+                        },
+                    ]
+                }
+            ]
+        },
+    )
+
     items: List[PredictRequest] = Field(default_factory=list)
 
 

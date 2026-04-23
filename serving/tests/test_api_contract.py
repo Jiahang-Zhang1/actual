@@ -34,6 +34,23 @@ def test_predict_endpoint_contract(monkeypatch):
     assert len(payload["top_categories"]) == 3
 
 
+def test_predict_endpoint_contract_accepts_sparse_manual_entry(monkeypatch):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        json={
+            "account_id": "checking-account",
+            "currency": "USD",
+            "amount": 24.99,
+        },
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["predicted_category_id"] == "Food & Dining"
+    assert payload["confidence"] == payload["top_categories"][0]["score"]
+
+
 def test_predict_batch_endpoint_contract_with_online_features_shape(monkeypatch):
     monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
     client = TestClient(app)
@@ -82,3 +99,46 @@ def test_feedback_and_monitor_summary(monkeypatch, tmp_path):
     assert payload["feedback_count"] == 1
     assert payload["top1_acceptance"] == 1.0
     assert payload["top3_acceptance"] == 1.0
+
+
+def test_synthetic_traffic_is_excluded_from_monitor_summary(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.FEEDBACK_LOG", tmp_path / "feedback_events.jsonl")
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+    client = TestClient(app)
+    headers = {"X-Actual-Traffic-Source": "benchmark"}
+
+    predict = client.post(
+        "/predict",
+        headers=headers,
+        json={
+            "transaction_description": "STARBUCKS STORE 1458 NEW YORK NY",
+            "country": "US",
+            "currency": "USD",
+        },
+    )
+    assert predict.status_code == 200
+
+    feedback = client.post(
+        "/feedback",
+        headers=headers,
+        json={
+            "transaction_id": "tx-synthetic",
+            "model_version": "v1",
+            "predicted_category_id": "Food & Dining",
+            "applied_category_id": "Food & Dining",
+            "confidence": 0.8,
+            "candidate_category_ids": ["Food & Dining", "Shopping & Retail"],
+        },
+    )
+    assert feedback.status_code == 200
+    assert feedback.json()["saved"] is False
+
+    summary = client.get("/monitor/summary")
+    assert summary.status_code == 200
+    payload = summary.json()
+    assert payload["request_count"] == 0
+    assert payload["prediction_count"] == 0
+    assert payload["feedback_count"] == 0

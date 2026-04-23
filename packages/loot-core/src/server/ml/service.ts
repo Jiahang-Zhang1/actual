@@ -1,5 +1,6 @@
 import type {
   MlBatchPredictResponse,
+  MlCategoryScore,
   MlFeedbackRequest,
   MlFeedbackResponse,
   MlPredictRequest,
@@ -18,10 +19,34 @@ function sanitizeText(value?: null | string, maxLength: number = 512) {
   return (value ?? '').replace(/\s+/g, ' ').trim().slice(0, maxLength);
 }
 
+function buildFallbackDescription(payload: MlPredictRequest) {
+  const candidates = [
+    sanitizeText(payload.transactionDescription),
+    sanitizeText(payload.importedDescription, 256),
+    sanitizeText(payload.notes, 256),
+  ].filter(Boolean);
+
+  if (candidates.length > 0) {
+    return candidates[0];
+  }
+
+  const hints = [
+    payload.accountId ? `account ${sanitizeText(payload.accountId, 64)}` : '',
+    payload.currency && sanitizeText(payload.currency, 16) !== 'unknown'
+      ? sanitizeText(payload.currency, 16)
+      : '',
+    typeof payload.amount === 'number' && Number.isFinite(payload.amount)
+      ? `amount ${Math.abs(payload.amount)}`
+      : '',
+  ].filter(Boolean);
+
+  return hints.join(' ').trim() || 'manual entry';
+}
+
 function toRequestBody(payload: MlPredictRequest) {
   return {
     transaction_id: payload.transactionId,
-    transaction_description: sanitizeText(payload.transactionDescription),
+    transaction_description: buildFallbackDescription(payload),
     country: sanitizeText(payload.country, 32) || 'unknown',
     currency: sanitizeText(payload.currency, 16) || 'unknown',
     amount: payload.amount ?? null,
@@ -35,12 +60,50 @@ function toRequestBody(payload: MlPredictRequest) {
 
 // Guard the HTTP contract so callers always receive a top-k shape that the
 // frontend badge/popover logic can render safely.
+function normalizeTopCategories(
+  topCategories: unknown,
+): MlCategoryScore[] {
+  if (!Array.isArray(topCategories)) {
+    return [];
+  }
+
+  return topCategories
+    .filter(
+      (
+        item,
+      ): item is {
+        category_id: string;
+        score: number;
+      } =>
+        !!item &&
+        typeof item === 'object' &&
+        'category_id' in item &&
+        typeof item.category_id === 'string' &&
+        'score' in item &&
+        typeof item.score === 'number',
+    )
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 3);
+}
+
 function parsePredictResponse(response: unknown): MlPredictResponse {
-  const parsed = response as MlPredictResponse;
-  if (!parsed || !Array.isArray(parsed.top_categories)) {
+  const parsed = response as Partial<MlPredictResponse> | null;
+  const topCategories = normalizeTopCategories(parsed?.top_categories);
+
+  if (!parsed || typeof parsed.model_version !== 'string') {
+    throw new Error('ML predict response is missing model_version');
+  }
+  if (topCategories.length === 0) {
     throw new Error('ML predict response is missing top_categories');
   }
-  return parsed;
+
+  const topCategory = topCategories[0];
+  return {
+    predicted_category_id: topCategory.category_id,
+    confidence: topCategory.score,
+    top_categories: topCategories,
+    model_version: parsed.model_version,
+  };
 }
 
 function toFeedbackBody(payload: MlFeedbackRequest) {
@@ -72,9 +135,6 @@ export async function predictCategory(
   payload: MlPredictRequest,
 ): Promise<MlPredictResponse | null> {
   const body = toRequestBody(payload);
-  if (!body.transaction_description) {
-    return null;
-  }
 
   const res = await fetchWithTimeout(`${ML_SERVICE_URL}/predict`, {
     method: 'POST',
@@ -99,16 +159,11 @@ export async function predictCategoryBatch(
   }
 
   const requestBodies = payloads.map(toRequestBody);
-  const indexedValidBodies = requestBodies
-    .map((body, index) => ({ body, index }))
-    .filter(({ body }) => Boolean(body.transaction_description));
+  const indexedBodies = requestBodies.map((body, index) => ({ body, index }));
 
   // Keep output cardinality equal to input cardinality so transaction-level
   // callers can map predictions back by original index.
   const predictions: Array<MlPredictResponse | null> = payloads.map(() => null);
-  if (indexedValidBodies.length === 0) {
-    return predictions;
-  }
 
   const res = await fetchWithTimeout(`${ML_SERVICE_URL}/predict_batch`, {
     method: 'POST',
@@ -116,7 +171,7 @@ export async function predictCategoryBatch(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      items: indexedValidBodies.map(({ body }) => body),
+      items: indexedBodies.map(({ body }) => body),
     }),
   });
 
@@ -127,7 +182,7 @@ export async function predictCategoryBatch(
   const data = (await res.json()) as MlBatchPredictResponse;
   if (
     !Array.isArray(data.items) ||
-    data.items.length !== indexedValidBodies.length
+    data.items.length !== indexedBodies.length
   ) {
     throw new Error(
       'ML predict batch response size does not match request size',
@@ -137,7 +192,7 @@ export async function predictCategoryBatch(
   // The serving endpoint returns only valid items. Rehydrate sparse results
   // into the original request order expected by callers.
   data.items.forEach((item, itemIndex) => {
-    const originalIndex = indexedValidBodies[itemIndex].index;
+    const originalIndex = indexedBodies[itemIndex].index;
     predictions[originalIndex] = parsePredictResponse(item);
   });
 

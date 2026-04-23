@@ -14,7 +14,7 @@ from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.config import get_settings
-from app.feature_adapter import build_feature_frame, choose_description
+from app.feature_adapter import build_feature_frame
 from app.runtime import (
     get_backend,
     refresh_backend_if_model_changed,
@@ -84,6 +84,19 @@ feedback_top3_match_total = Counter(
     "Count where user picked one of the model top-k candidates",
 )
 
+live_http_requests_total = Counter(
+    "live_http_requests_total",
+    "Live request counts for online monitoring and alerting.",
+    ["handler", "status"],
+)
+
+live_http_request_duration_seconds = Histogram(
+    "live_http_request_duration_seconds",
+    "Live request latency for online monitoring and alerting.",
+    ["handler"],
+    buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5],
+)
+
 data_quality_pass = Gauge(
     "actual_data_quality_pass",
     "Whether the latest data quality check passed.",
@@ -100,6 +113,24 @@ data_quality_metric = Gauge(
     "actual_data_quality_metric",
     "Numeric metrics emitted by data quality checks.",
     ["stage", "metric"],
+)
+
+synthetic_request_total = Counter(
+    "synthetic_request_total",
+    "Synthetic requests excluded from online monitoring windows.",
+    ["path", "source"],
+)
+
+synthetic_prediction_total = Counter(
+    "synthetic_prediction_total",
+    "Synthetic prediction items excluded from online monitoring windows.",
+    ["source"],
+)
+
+synthetic_feedback_total = Counter(
+    "synthetic_feedback_total",
+    "Synthetic feedback events excluded from online monitoring windows.",
+    ["source"],
 )
 
 
@@ -121,6 +152,18 @@ def _parse_ts(value: str | None) -> datetime | None:
         return datetime.fromisoformat(value.replace("Z", "+00:00"))
     except Exception:
         return None
+
+
+def _synthetic_source(request: Request) -> str | None:
+    source = request.headers.get("x-actual-traffic-source", "").strip().lower()
+    if not source:
+        synthetic_header = request.headers.get("x-actual-synthetic-traffic", "").strip().lower()
+        if synthetic_header in {"1", "true", "yes", "on"}:
+            return "synthetic"
+        return None
+    if source in {"user", "production", "live"}:
+        return None
+    return source
 
 
 def _ensure_runtime_dir() -> None:
@@ -359,7 +402,12 @@ def _monitor_decision(summary: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _response_from_row(label: str, probabilities: np.ndarray, classes: List[str]) -> PredictResponse:
+def _response_from_row(
+    probabilities: np.ndarray,
+    classes: List[str],
+    *,
+    record_observability: bool = True,
+) -> PredictResponse:
     current_settings = _current_settings()
     ordered_idx = np.argsort(probabilities)[::-1][: current_settings.top_k]
     top_categories = [
@@ -367,14 +415,11 @@ def _response_from_row(label: str, probabilities: np.ndarray, classes: List[str]
         for idx in ordered_idx
     ]
 
-    predicted_idx = ordered_idx[0]
-    predicted_label = label if label in classes else top_categories[0].category_id
-    if predicted_label in classes:
-        predicted_idx = classes.index(predicted_label)
-
-    confidence = round(float(probabilities[predicted_idx]), 6)
-    prediction_confidence.observe(confidence)
-    predicted_class_total.labels(category_id=str(predicted_label)).inc()
+    predicted_label = top_categories[0].category_id
+    confidence = top_categories[0].score
+    if record_observability:
+        prediction_confidence.observe(confidence)
+        predicted_class_total.labels(category_id=str(predicted_label)).inc()
 
     return PredictResponse(
         predicted_category_id=str(predicted_label),
@@ -384,36 +429,51 @@ def _response_from_row(label: str, probabilities: np.ndarray, classes: List[str]
     )
 
 
-def _predict_many(items: list[PredictRequest]) -> list[PredictResponse]:
+def _predict_many(
+    items: list[PredictRequest],
+    *,
+    record_observability: bool = True,
+    synthetic_source: str | None = None,
+) -> list[PredictResponse]:
     if not items:
         raise ValueError("items must not be empty")
-    if any(not choose_description(item) for item in items):
-        raise ValueError("transaction_description, transaction_description_clean, or merchant_text is required")
 
     _current_settings()
     backend = get_backend()
     frame = build_feature_frame(items)
     output = backend.predict(frame)
     responses = [
-        _response_from_row(output.labels[idx], output.probabilities[idx], output.classes)
+        _response_from_row(
+            output.probabilities[idx],
+            output.classes,
+            record_observability=record_observability,
+        )
         for idx in range(len(items))
     ]
-    for response in responses:
-        _safe_append_jsonl(
-            PREDICTION_LOG,
-            {
-                "ts": _utc_now_iso(),
-                "predicted_category_id": response.predicted_category_id,
-                "confidence": response.confidence,
-                "candidate_category_ids": [item.category_id for item in response.top_categories],
-                "model_version": response.model_version,
-            },
-        )
+    if synthetic_source:
+        synthetic_prediction_total.labels(source=synthetic_source).inc(len(responses))
+    if record_observability:
+        for response in responses:
+            _safe_append_jsonl(
+                PREDICTION_LOG,
+                {
+                    "ts": _utc_now_iso(),
+                    "predicted_category_id": response.predicted_category_id,
+                    "confidence": response.confidence,
+                    "candidate_category_ids": [item.category_id for item in response.top_categories],
+                    "model_version": response.model_version,
+                },
+            )
     return responses
 
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
+    synthetic_source = _synthetic_source(request)
+    request.state.synthetic_source = synthetic_source
+    request.state.record_observability = synthetic_source is None
+    if synthetic_source:
+        synthetic_request_total.labels(path=request.url.path, source=synthetic_source).inc()
     start = time.perf_counter()
     status_code = 500
     try:
@@ -421,13 +481,19 @@ async def request_logging_middleware(request: Request, call_next):
         status_code = response.status_code
         return response
     finally:
-        if request.url.path in {"/predict", "/predict_batch"}:
+        if request.url.path in {"/predict", "/predict_batch"} and getattr(
+            request.state, "record_observability", True
+        ):
+            handler = request.url.path
             latency_ms = round((time.perf_counter() - start) * 1000.0, 4)
+            status_label = f"{max(status_code, 500) // 100}xx"
+            live_http_requests_total.labels(handler=handler, status=status_label).inc()
+            live_http_request_duration_seconds.labels(handler=handler).observe(latency_ms / 1000.0)
             _safe_append_jsonl(
                 REQUEST_LOG,
                 {
                     "ts": _utc_now_iso(),
-                    "path": request.url.path,
+                    "path": handler,
                     "status_code": status_code,
                     "latency_ms": latency_ms,
                     "item_count": int(getattr(request.state, "item_count", 1)),
@@ -518,7 +584,12 @@ def monitor_data_quality(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @app.post("/feedback", response_model=FeedbackResponse)
-def feedback(request: FeedbackRequest) -> FeedbackResponse:
+def feedback(request: FeedbackRequest, raw_request: Request) -> FeedbackResponse:
+    synthetic_source = getattr(raw_request.state, "synthetic_source", None)
+    if synthetic_source:
+        synthetic_feedback_total.labels(source=synthetic_source).inc()
+        return FeedbackResponse(status="ok", saved=False)
+
     event = {
         "ts": _utc_now_iso(),
         "transaction_id": request.transaction_id,
@@ -542,7 +613,11 @@ def feedback(request: FeedbackRequest) -> FeedbackResponse:
 def predict(body: PredictRequest, raw_request: Request) -> PredictResponse:
     raw_request.state.item_count = 1
     try:
-        return _predict_many([body])[0]
+        return _predict_many(
+            [body],
+            record_observability=getattr(raw_request.state, "record_observability", True),
+            synthetic_source=getattr(raw_request.state, "synthetic_source", None),
+        )[0]
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
@@ -555,7 +630,13 @@ def predict(body: PredictRequest, raw_request: Request) -> PredictResponse:
 def predict_batch(body: BatchPredictRequest, raw_request: Request) -> PredictBatchResponse:
     raw_request.state.item_count = max(1, len(body.items))
     try:
-        return PredictBatchResponse(items=_predict_many(body.items))
+        return PredictBatchResponse(
+            items=_predict_many(
+                body.items,
+                record_observability=getattr(raw_request.state, "record_observability", True),
+                synthetic_source=getattr(raw_request.state, "synthetic_source", None),
+            )
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
