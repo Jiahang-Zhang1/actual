@@ -7,11 +7,30 @@ import type {
   MlPredictResponse,
 } from './types';
 
-const ML_SERVICE_URL =
-  process.env.ACTUAL_ML_SERVICE_URL || 'http://localhost:8000';
+const ML_SERVICE_URL = getMlServiceUrl();
 const ML_REQUEST_TIMEOUT_MS = Number(
   process.env.ACTUAL_ML_SERVICE_TIMEOUT_MS || 2500,
 );
+
+function getMlServiceUrl() {
+  const explicitUrl = (process.env.ACTUAL_ML_SERVICE_URL || '').trim();
+  if (explicitUrl) {
+    return explicitUrl.replace(/\/+$/, '');
+  }
+
+  const isBrowserLike =
+    typeof window !== 'undefined' || typeof self !== 'undefined';
+  const isDevelopment = process.env.NODE_ENV === 'development';
+
+  if (isBrowserLike && !isDevelopment) {
+    // The compiled backend worker runs inside the user's browser tab. In
+    // production we need a same-origin HTTPS path so requests are not blocked
+    // by mixed-content rules or internal cluster DNS names.
+    return '/smartcat';
+  }
+
+  return 'http://localhost:8000';
+}
 
 // Normalize user-provided text fields before sending to serving to avoid
 // oversized payloads and incidental whitespace variance.

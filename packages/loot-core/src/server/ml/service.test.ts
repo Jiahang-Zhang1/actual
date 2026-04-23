@@ -49,6 +49,7 @@ describe('ml service request shaping', () => {
     const [, init] = fetchMock.mock.calls[0];
     const body = JSON.parse(String(init?.body));
     expect(body.transaction_description).toContain('account checking-account');
+    expect(fetchMock.mock.calls[0][0]).toBe('http://localhost:8000/predict');
   });
 
   it('predictCategoryBatch preserves sparse rows and normalizes confidence to top-1', async () => {
@@ -91,5 +92,44 @@ describe('ml service request shaping', () => {
         { category_id: 'Transportation', score: 0.11 },
       ],
     });
+  });
+
+  it('predictCategory uses the same-origin smartcat proxy in browser production builds', async () => {
+    const previousNodeEnv = process.env.NODE_ENV;
+    process.env.NODE_ENV = 'production';
+    try {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValue(
+          jsonResponse({
+            predicted_category_id: 'Food & Dining',
+            confidence: 0.9,
+            top_categories: [
+              { category_id: 'Food & Dining', score: 0.6 },
+              { category_id: 'Shopping & Retail', score: 0.25 },
+              { category_id: 'Transportation', score: 0.15 },
+            ],
+            model_version: 'v-browser',
+          }),
+        );
+
+      vi.resetModules();
+      vi.stubGlobal('fetch', fetchMock);
+      vi.stubGlobal('self', {});
+
+      const { predictCategory: predictCategoryInBrowser } = await import(
+        './service'
+      );
+
+      await predictCategoryInBrowser({
+        transactionDescription: 'STARBUCKS',
+        amount: 5.75,
+        currency: 'USD',
+      });
+
+      expect(fetchMock.mock.calls[0][0]).toBe('/smartcat/predict');
+    } finally {
+      process.env.NODE_ENV = previousNodeEnv;
+    }
   });
 });

@@ -266,6 +266,19 @@ type MlPrediction = {
   }>;
 };
 
+const ML_CATEGORY_ALIASES: Record<string, string[]> = {
+  'charity and donations': ['Gift'],
+  'entertainment and recreation': ['Entertainment'],
+  'financial services': ['Savings', 'General'],
+  'food and dining': ['Food', 'Restaurants'],
+  'government and legal': ['General'],
+  income: ['Income', 'Misc'],
+  'healthcare and medical': ['Medical'],
+  'shopping and retail': ['General', 'Clothing'],
+  transportation: ['General'],
+  'utilities and services': ['Internet', 'Cell', 'Power', 'Water'],
+};
+
 type AccountInternalState = {
   search: string;
   filterConditions: ConditionEntity[];
@@ -362,6 +375,7 @@ class AccountInternal extends PureComponent<
       return {
         categoryId: exactIdMatch.id,
         categoryName: exactIdMatch.name,
+        isMapped: true,
       };
     }
 
@@ -374,6 +388,23 @@ class AccountInternal extends PureComponent<
       return {
         categoryId: exactNameMatch.id,
         categoryName: exactNameMatch.name,
+        isMapped: true,
+      };
+    }
+
+    const aliasNames = ML_CATEGORY_ALIASES[normalizedPrediction] || [];
+    const aliasMatch = categories.find(category =>
+      aliasNames.some(
+        alias =>
+          this.normalizeCategoryName(alias) ===
+          this.normalizeCategoryName(category.name),
+      ),
+    );
+    if (aliasMatch) {
+      return {
+        categoryId: aliasMatch.id,
+        categoryName: aliasMatch.name,
+        isMapped: true,
       };
     }
 
@@ -382,6 +413,7 @@ class AccountInternal extends PureComponent<
     return {
       categoryId: categoryIdOrName,
       categoryName: categoryIdOrName,
+      isMapped: false,
     };
   };
 
@@ -631,10 +663,13 @@ class AccountInternal extends PureComponent<
         const topCategory = this.getTopCategories(
           predictionsById[transaction.id],
         )[0];
-        return topCategory
+        const resolvedTopCategory = topCategory
+          ? this.resolveMlCategory(topCategory.category_id)
+          : null;
+        return topCategory && resolvedTopCategory?.isMapped
           ? {
               id: transaction.id,
-              category: topCategory.category_id,
+              category: resolvedTopCategory.categoryId,
             }
           : null;
       })
