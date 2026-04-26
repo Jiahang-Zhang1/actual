@@ -520,6 +520,7 @@ function HeaderCell({
 
 type MlSuggestion = {
   confidence: number;
+  modelVersion?: string;
   topCategories: Array<{
     category_id: string;
     score: number;
@@ -577,6 +578,45 @@ function getCompactCategoryName(categoryName: string) {
   };
 
   return compactNames[categoryName] ?? categoryName;
+}
+
+async function mirrorMlFeedbackToServing({
+  transactionId,
+  suggestion,
+  categoryGroups,
+  categoryId,
+}: {
+  transactionId: TransactionEntity['id'] | null | undefined;
+  suggestion: MlSuggestion | null;
+  categoryGroups: CategoryGroupEntity[];
+  categoryId: string;
+}) {
+  if (!transactionId || !suggestion?.modelVersion) {
+    return;
+  }
+
+  const candidateCategoryIds = suggestion.topCategories.map(item =>
+    getCategoryDisplayName(categoryGroups, item.category_id, suggestion),
+  );
+
+  await fetch('/smartcat/feedback', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      transaction_id: transactionId,
+      model_version: suggestion.modelVersion,
+      predicted_category_id: candidateCategoryIds[0],
+      applied_category_id: getCategoryDisplayName(
+        categoryGroups,
+        categoryId,
+        suggestion,
+      ),
+      confidence: suggestion.confidence,
+      candidate_category_ids: candidateCategoryIds,
+    }),
+  }).catch(() => undefined);
 }
 
 function AIPredictionsCell({
@@ -2168,6 +2208,12 @@ const Transaction = memo(function Transaction({
               !isPreview && onApplyMlSuggestion
                 ? categoryId => {
                     setUserSelectedMlCategoryId(categoryId);
+                    void mirrorMlFeedbackToServing({
+                      transactionId: originalTransaction.id,
+                      suggestion: mlSuggestion,
+                      categoryGroups,
+                      categoryId,
+                    });
                     return onApplyMlSuggestion(originalTransaction, categoryId);
                   }
                 : undefined
@@ -2192,6 +2238,12 @@ const Transaction = memo(function Transaction({
               !isPreview && onApplyMlSuggestion
                 ? categoryId => {
                     setUserSelectedMlCategoryId(categoryId);
+                    void mirrorMlFeedbackToServing({
+                      transactionId: originalTransaction.id,
+                      suggestion: mlSuggestion,
+                      categoryGroups,
+                      categoryId,
+                    });
                     return onApplyMlSuggestion(originalTransaction, categoryId);
                   }
                 : undefined

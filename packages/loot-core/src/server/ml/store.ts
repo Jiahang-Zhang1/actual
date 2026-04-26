@@ -81,8 +81,15 @@ export async function getLatestPrediction(transactionId: string) {
 export async function recordFeedback(args: {
   transactionId: string;
   finalCategoryId: string;
+  prediction?: MlPredictResponse | null;
+  syncToServing?: boolean;
 }) {
-  const latest = await getLatestPrediction(args.transactionId);
+  let latest = await getLatestPrediction(args.transactionId);
+  if (!latest && args.prediction) {
+    await savePrediction(args.transactionId, args.prediction);
+    latest = await getLatestPrediction(args.transactionId);
+  }
+
   if (!latest) {
     return null;
   }
@@ -147,20 +154,22 @@ export async function recordFeedback(args: {
     feedback_status: status,
   };
 
-  try {
-    // Mirror feedback to serving so monitoring/alerts are based on live user
-    // behavior, while still keeping local SQLite as the source of truth.
-    await sendFeedback({
-      transactionId: args.transactionId,
-      modelVersion: latest.model_version,
-      predictedCategoryId: latest.predicted_category_id,
-      // Serving monitors label-level acceptance, while Actual stores category ids.
-      appliedCategoryId: finalCategory?.name ?? args.finalCategoryId,
-      confidence: latest.confidence,
-      candidateCategoryIds: top3CategoryIds,
-    });
-  } catch (error) {
-    logger.error('ML feedback sync to serving failed', error);
+  if (args.syncToServing !== false) {
+    try {
+      // Mirror feedback to serving so monitoring/alerts are based on live user
+      // behavior, while still keeping local SQLite as the source of truth.
+      await sendFeedback({
+        transactionId: args.transactionId,
+        modelVersion: latest.model_version,
+        predictedCategoryId: latest.predicted_category_id,
+        // Serving monitors label-level acceptance, while Actual stores category ids.
+        appliedCategoryId: finalCategory?.name ?? args.finalCategoryId,
+        confidence: latest.confidence,
+        candidateCategoryIds: top3CategoryIds,
+      });
+    } catch (error) {
+      logger.error('ML feedback sync to serving failed', error);
+    }
   }
 
   return result;

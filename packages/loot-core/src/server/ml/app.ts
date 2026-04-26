@@ -56,7 +56,10 @@ async function predictAndPersistBatch(args: {
   try {
     predictions = await predictCategoryBatch(items.map(item => item.payload));
   } catch (error) {
-    logger.error('ML batch prediction failed in ml app; falling back to single', error);
+    logger.error(
+      'ML batch prediction failed in ml app; falling back to single',
+      error,
+    );
     predictions = await Promise.all(
       items.map(async item => {
         try {
@@ -91,6 +94,8 @@ async function getPredictionForTransaction(transactionId: string) {
 async function saveFeedback(args: {
   transactionId: string;
   finalCategoryId: string;
+  prediction?: MlPredictResponse | null;
+  syncToServing?: boolean;
 }) {
   return await recordFeedback(args);
 }

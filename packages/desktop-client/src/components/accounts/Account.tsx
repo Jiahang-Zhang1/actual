@@ -266,6 +266,13 @@ type MlPrediction = {
   }>;
 };
 
+type MlFeedbackPrediction = Omit<MlPrediction, 'top_categories'> & {
+  top_categories: Array<{
+    category_id: string;
+    score: number;
+  }>;
+};
+
 const ML_CATEGORY_ALIASES: Record<string, string[]> = {
   'charity and donations': ['Gift'],
   'entertainment and recreation': ['Entertainment'],
@@ -701,16 +708,51 @@ class AccountInternal extends PureComponent<
     transaction: TransactionEntity,
     categoryId: string,
   ) => {
+    const prediction = this.toFeedbackPrediction(transaction.id);
+
+    // Record the user click first. For newly-created manual rows, the table can
+    // optimistically update before the transaction write fully settles, but the
+    // click itself is still valid feedback for monitoring and retraining.
+    await send('ml-record-feedback', {
+      transactionId: transaction.id,
+      finalCategoryId: categoryId,
+      prediction,
+      syncToServing: false,
+    });
+
     await send('transactions-batch-update', {
       updated: [{ id: transaction.id, category: categoryId }],
     });
 
-    await send('ml-record-feedback', {
-      transactionId: transaction.id,
-      finalCategoryId: categoryId,
-    });
-
     await this.refetchTransactions();
+  };
+
+  toFeedbackPrediction = (
+    transactionId: TransactionEntity['id'],
+  ): MlFeedbackPrediction | null => {
+    const prediction = this.state.mlPredictionsById[transactionId];
+    const topCategories = this.getTopCategories(prediction);
+
+    if (!prediction || topCategories.length === 0) {
+      return null;
+    }
+
+    const feedbackTopCategories = topCategories.map(item => ({
+      category_id: item.category_name ?? item.category_id,
+      score: item.score,
+    }));
+
+    const topCategory = feedbackTopCategories[0];
+    if (!topCategory) {
+      return null;
+    }
+
+    return {
+      model_version: prediction.model_version,
+      predicted_category_id: topCategory.category_id,
+      confidence: topCategory.score,
+      top_categories: feedbackTopCategories,
+    };
   };
 
   getTopCategories = (prediction: MlPrediction | null) => {
@@ -2307,6 +2349,7 @@ class AccountInternal extends PureComponent<
 
                     return {
                       confidence: prediction.confidence,
+                      modelVersion: prediction.model_version,
                       topCategories,
                     };
                   }}
