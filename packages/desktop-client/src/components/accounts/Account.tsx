@@ -278,13 +278,13 @@ const ML_PREDICTION_BATCH_SIZE = 25;
 const ML_CATEGORY_ALIASES: Record<string, string[]> = {
   'charity and donations': ['Gift'],
   'entertainment and recreation': ['Entertainment'],
-  'financial services': ['Savings', 'General'],
+  'financial services': ['Bank Fees', 'Fees'],
   'food and dining': ['Food', 'Restaurants'],
-  'government and legal': ['General'],
+  'government and legal': ['Taxes'],
   income: ['Income', 'Misc'],
   'healthcare and medical': ['Medical'],
-  'shopping and retail': ['General', 'Clothing'],
-  transportation: ['General'],
+  'shopping and retail': ['Shopping', 'Clothing'],
+  transportation: ['Transportation', 'Transit'],
   'utilities and services': ['Internet', 'Cell', 'Power', 'Water'],
 };
 
@@ -428,6 +428,41 @@ class AccountInternal extends PureComponent<
 
   resolveMlCategoryId = (categoryIdOrName: string) => {
     return this.resolveMlCategory(categoryIdOrName).categoryId;
+  };
+
+  getDefaultMlCategoryGroupId = () => {
+    const visibleExpenseGroup = this.props.categoryGroups.find(
+      group => !group.is_income && !group.hidden,
+    );
+    const anyExpenseGroup = this.props.categoryGroups.find(
+      group => !group.is_income,
+    );
+    return visibleExpenseGroup?.id ?? anyExpenseGroup?.id ?? null;
+  };
+
+  ensureAppliedMlCategoryId = async (categoryIdOrName: string) => {
+    const resolved = this.resolveMlCategory(categoryIdOrName);
+    if (resolved.isMapped) {
+      return resolved.categoryId;
+    }
+
+    const groupId = this.getDefaultMlCategoryGroupId();
+    if (!groupId) {
+      return resolved.categoryId;
+    }
+
+    try {
+      return await send('category-create', {
+        name: resolved.categoryName,
+        groupId,
+        isIncome:
+          this.normalizeCategoryName(resolved.categoryName) === 'income',
+        hidden: false,
+      });
+    } catch (error) {
+      console.error('Failed to create ML category', error);
+      return resolved.categoryId;
+    }
   };
 
   getTransactionMlTextSignal = (transaction: TransactionEntity) => {
@@ -809,6 +844,7 @@ class AccountInternal extends PureComponent<
     transaction: TransactionEntity,
     categoryId: string,
   ) => {
+    const appliedCategoryId = await this.ensureAppliedMlCategoryId(categoryId);
     const prediction = this.toFeedbackPrediction(transaction.id);
 
     // Record the user click first. For newly-created manual rows, the table can
@@ -816,13 +852,13 @@ class AccountInternal extends PureComponent<
     // click itself is still valid feedback for monitoring and retraining.
     await send('ml-record-feedback', {
       transactionId: transaction.id,
-      finalCategoryId: categoryId,
+      finalCategoryId: appliedCategoryId,
       prediction,
       syncToServing: false,
     });
 
     await send('transactions-batch-update', {
-      updated: [{ id: transaction.id, category: categoryId }],
+      updated: [{ id: transaction.id, category: appliedCategoryId }],
     });
 
     await this.refetchTransactions();
