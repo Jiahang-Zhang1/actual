@@ -8,6 +8,9 @@ build
 coverage
 .venv
 venv
+artifacts
+serving/.venv-traffic
+serving/results
 __pycache__
 *.pyc
 *.pyo
