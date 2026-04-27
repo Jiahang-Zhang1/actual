@@ -1,10 +1,10 @@
 {
   "model_version": "v20260427192054",
   "code_version": "serving",
-  "source_model_path": "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
+  "source_model_path": "source/v2_tfidf_linearsvc_model.joblib",
   "optimized_model_paths": {
-    "onnx": "/workspace/models/optimized/v2_tfidf_linearsvc_model.onnx",
-    "onnx_dynamic_quant": "/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx"
+    "onnx": "optimized/v2_tfidf_linearsvc_model.onnx",
+    "onnx_dynamic_quant": "optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx"
   },
   "sizes_mb": {
     "source": 0.1787,

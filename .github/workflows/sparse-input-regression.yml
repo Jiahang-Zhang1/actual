@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 20
     env:
       MODEL_BUNDLE_DIR: ${{ github.workspace }}/serving/runtime/deployed
+      MODEL_PATH: ${{ github.workspace }}/serving/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx
+      SOURCE_MODEL_PATH: ${{ github.workspace }}/serving/models/source/v2_tfidf_linearsvc_model.joblib
       RUNTIME_DIR: ${{ github.workspace }}/artifacts/ci-runtime
       SERVICE_HOST: 127.0.0.1
       SERVICE_PORT: 8000
