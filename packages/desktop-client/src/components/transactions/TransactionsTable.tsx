@@ -588,15 +588,31 @@ function normalizeMlCategoryKey(value: null | string | undefined) {
     .toLowerCase();
 
   const aliases: Record<string, string> = {
+    'bank fees': 'financial services',
     charity: 'charity and donations',
+    cell: 'utilities and services',
+    clothing: 'shopping and retail',
+    doctor: 'healthcare and medical',
+    electric: 'utilities and services',
+    electricity: 'utilities and services',
     entertainment: 'entertainment and recreation',
+    fees: 'financial services',
     financial: 'financial services',
     food: 'food and dining',
+    gift: 'charity and donations',
     'gov legal': 'government and legal',
     healthcare: 'healthcare and medical',
+    internet: 'utilities and services',
+    medical: 'healthcare and medical',
+    pharmacy: 'healthcare and medical',
+    power: 'utilities and services',
+    restaurants: 'food and dining',
     shopping: 'shopping and retail',
+    taxes: 'government and legal',
     transport: 'transportation',
+    transit: 'transportation',
     utilities: 'utilities and services',
+    water: 'utilities and services',
   };
 
   return aliases[normalized] ?? normalized;

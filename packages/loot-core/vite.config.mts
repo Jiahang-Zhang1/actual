@@ -65,6 +65,12 @@ export default defineConfig(({ mode }) => {
       'process.env.PUBLIC_URL': JSON.stringify(process.env.PUBLIC_URL || '/'),
       'process.env.ACTUAL_DATA_DIR': JSON.stringify('/'),
       'process.env.ACTUAL_DOCUMENT_DIR': JSON.stringify('/documents'),
+      'process.env.ACTUAL_ML_SERVICE_URL': JSON.stringify(
+        process.env.ACTUAL_ML_SERVICE_URL || '',
+      ),
+      'process.env.ACTUAL_ML_SERVICE_TIMEOUT_MS': JSON.stringify(
+        process.env.ACTUAL_ML_SERVICE_TIMEOUT_MS || '',
+      ),
     },
     plugins: [
       peggyLoader(),

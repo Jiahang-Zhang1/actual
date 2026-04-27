@@ -285,7 +285,7 @@ const ML_CATEGORY_ALIASES: Record<string, string[]> = {
   'healthcare and medical': ['Medical'],
   'shopping and retail': ['Shopping', 'Clothing'],
   transportation: ['Transportation', 'Transit'],
-  'utilities and services': ['Internet', 'Cell', 'Power', 'Water'],
+  'utilities and services': ['Power', 'Water', 'Internet', 'Cell'],
 };
 
 type AccountInternalState = {
@@ -375,7 +375,41 @@ class AccountInternal extends PureComponent<
   getCategoryCandidates = (): CategoryEntity[] =>
     this.props.categoryGroups.flatMap(group => group.categories ?? []);
 
-  resolveMlCategory = (categoryIdOrName: string) => {
+  getMlCategoryAliases = (
+    normalizedPrediction: string,
+    textSignal?: string,
+  ) => {
+    const aliases = ML_CATEGORY_ALIASES[normalizedPrediction] || [];
+    if (normalizedPrediction !== 'utilities and services') {
+      return aliases;
+    }
+
+    const normalizedTextSignal = this.normalizeCategoryName(textSignal || '');
+    if (
+      ['coned', 'electric', 'electricity', 'energy', 'power'].some(keyword =>
+        normalizedTextSignal.includes(keyword),
+      )
+    ) {
+      return ['Power', 'Water', 'Internet', 'Cell'];
+    }
+    if (normalizedTextSignal.includes('water')) {
+      return ['Water', 'Power', 'Internet', 'Cell'];
+    }
+    if (normalizedTextSignal.includes('internet')) {
+      return ['Internet', 'Power', 'Water', 'Cell'];
+    }
+    if (
+      ['cell', 'mobile', 'phone', 'wireless'].some(keyword =>
+        normalizedTextSignal.includes(keyword),
+      )
+    ) {
+      return ['Cell', 'Power', 'Water', 'Internet'];
+    }
+
+    return aliases;
+  };
+
+  resolveMlCategory = (categoryIdOrName: string, textSignal?: string) => {
     const categories = this.getCategoryCandidates();
     const exactIdMatch = categories.find(
       category => category.id === categoryIdOrName,
@@ -401,20 +435,23 @@ class AccountInternal extends PureComponent<
       };
     }
 
-    const aliasNames = ML_CATEGORY_ALIASES[normalizedPrediction] || [];
-    const aliasMatch = categories.find(category =>
-      aliasNames.some(
-        alias =>
+    const aliasNames = this.getMlCategoryAliases(
+      normalizedPrediction,
+      textSignal,
+    );
+    for (const alias of aliasNames) {
+      const aliasMatch = categories.find(
+        category =>
           this.normalizeCategoryName(alias) ===
           this.normalizeCategoryName(category.name),
-      ),
-    );
-    if (aliasMatch) {
-      return {
-        categoryId: aliasMatch.id,
-        categoryName: aliasMatch.name,
-        isMapped: true,
-      };
+      );
+      if (aliasMatch) {
+        return {
+          categoryId: aliasMatch.id,
+          categoryName: aliasMatch.name,
+          isMapped: true,
+        };
+      }
     }
 
     // Keep the model label for display even if Actual has not mapped it to a
@@ -440,8 +477,14 @@ class AccountInternal extends PureComponent<
     return visibleExpenseGroup?.id ?? anyExpenseGroup?.id ?? null;
   };
 
-  ensureAppliedMlCategoryId = async (categoryIdOrName: string) => {
-    const resolved = this.resolveMlCategory(categoryIdOrName);
+  ensureAppliedMlCategoryId = async (
+    categoryIdOrName: string,
+    transaction?: TransactionEntity,
+  ) => {
+    const resolved = this.resolveMlCategory(
+      categoryIdOrName,
+      transaction ? this.getTransactionMlTextSignal(transaction) : undefined,
+    );
     if (resolved.isMapped) {
       return resolved.categoryId;
     }
@@ -549,11 +592,7 @@ class AccountInternal extends PureComponent<
         continue;
       }
       seenCategoryIds.add(resolved.categoryId);
-      topCategories.push({
-        ...item,
-        category_id: resolved.categoryId,
-        category_name: resolved.categoryName,
-      });
+      topCategories.push(item);
       if (topCategories.length >= 3) {
         break;
       }
@@ -566,8 +605,7 @@ class AccountInternal extends PureComponent<
     return {
       ...prediction,
       predicted_category_id:
-        topCategories[0]?.category_id ??
-        this.resolveMlCategoryId(prediction.predicted_category_id),
+        topCategories[0]?.category_id ?? prediction.predicted_category_id,
       confidence: topCategories[0]?.score ?? prediction.confidence,
       top_categories: topCategories,
     };
@@ -801,7 +839,10 @@ class AccountInternal extends PureComponent<
           predictionsById[transaction.id],
         )[0];
         const resolvedTopCategory = topCategory
-          ? this.resolveMlCategory(topCategory.category_id)
+          ? this.resolveMlCategory(
+              topCategory.category_id,
+              this.getTransactionMlTextSignal(transaction),
+            )
           : null;
         return topCategory &&
           resolvedTopCategory &&
@@ -844,7 +885,10 @@ class AccountInternal extends PureComponent<
     transaction: TransactionEntity,
     categoryId: string,
   ) => {
-    const appliedCategoryId = await this.ensureAppliedMlCategoryId(categoryId);
+    const appliedCategoryId = await this.ensureAppliedMlCategoryId(
+      categoryId,
+      transaction,
+    );
     const prediction = this.toFeedbackPrediction(transaction.id);
 
     // Record the user click first. For newly-created manual rows, the table can
