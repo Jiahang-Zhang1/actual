@@ -33,6 +33,71 @@ def default_model_path(backend_kind: str) -> str:
     raise ValueError(f"Unsupported BACKEND_KIND={backend_kind}")
 
 
+def _resolve_path_from_manifest(manifest_path: Path, raw_path: object, fallback_path: str) -> str:
+    if not raw_path:
+        return fallback_path
+    path = Path(str(raw_path))
+    if path.is_absolute():
+        return str(path)
+    return str((manifest_path.parent / path).resolve())
+
+
+def _manifest_candidates(
+    fallback_model_path: str,
+    fallback_source_model_path: str,
+    model_bundle_dir: str,
+) -> list[Path]:
+    candidates = [
+        Path(model_bundle_dir) / "manifest.json",
+        Path(fallback_model_path).parent.parent / "manifest.json",
+        Path(fallback_source_model_path).parent.parent / "manifest.json",
+    ]
+    seen: set[Path] = set()
+    unique_candidates: list[Path] = []
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def _resolve_manifest_selection(
+    requested_backend_kind: str,
+    fallback_model_path: str,
+    fallback_source_model_path: str,
+    fallback_model_version: str,
+    model_bundle_dir: str,
+) -> tuple[str, str, str, str] | None:
+    for manifest_path in _manifest_candidates(
+        fallback_model_path,
+        fallback_source_model_path,
+        model_bundle_dir,
+    ):
+        if not manifest_path.exists():
+            continue
+
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        backend_kind = "onnx_dynamic_quant" if requested_backend_kind == "auto" else requested_backend_kind
+        optimized_paths = manifest.get("optimized_model_paths") or {}
+        source_model_path = _resolve_path_from_manifest(
+            manifest_path,
+            manifest.get("source_model_path"),
+            fallback_source_model_path,
+        )
+        model_path = source_model_path
+        if backend_kind != "baseline":
+            model_path = _resolve_path_from_manifest(
+                manifest_path,
+                optimized_paths.get(backend_kind),
+                fallback_model_path,
+            )
+        model_version = str(manifest.get("model_version") or fallback_model_version)
+        return backend_kind, model_path, source_model_path, model_version
+
+    return None
+
+
 def _resolve_bundle_selection(
     requested_backend_kind: str,
     fallback_model_path: str,
@@ -44,6 +109,15 @@ def _resolve_bundle_selection(
     selection_path = bundle_dir / "selected_model.json"
     metadata_path = bundle_dir / "metadata.json"
     if not selection_path.exists():
+        manifest_selection = _resolve_manifest_selection(
+            requested_backend_kind,
+            fallback_model_path,
+            fallback_source_model_path,
+            fallback_model_version,
+            model_bundle_dir,
+        )
+        if manifest_selection is not None:
+            return manifest_selection
         backend_kind = "onnx_dynamic_quant" if requested_backend_kind == "auto" else requested_backend_kind
         return backend_kind, fallback_model_path, fallback_source_model_path, fallback_model_version
 
