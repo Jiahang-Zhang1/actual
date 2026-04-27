@@ -5,6 +5,54 @@ from pathlib import Path
 from typing import Any
 
 
+def clean_text(value: object | None, max_length: int = 512) -> str:
+    return str(value or "").replace("\n", " ").strip()[:max_length]
+
+
+def choose_description(transaction: dict[str, Any]) -> str:
+    for key in [
+        "transaction_description",
+        "transactionDescription",
+        "transaction_description_clean",
+        "transactionDescriptionClean",
+        "merchant_text",
+        "merchantText",
+        "imported_description",
+        "importedDescription",
+        "notes",
+    ]:
+        cleaned = clean_text(transaction.get(key))
+        if cleaned:
+            return cleaned
+    return ""
+
+
+def fallback_description(transaction: dict[str, Any]) -> str:
+    description = choose_description(transaction)
+    if description:
+        return description
+
+    amount = transaction.get("amount")
+    account_id = (
+        transaction.get("account_id")
+        or transaction.get("accountId")
+        or transaction.get("account")
+    )
+    currency = clean_text(transaction.get("currency"), max_length=16)
+    amount_hint = ""
+    if amount is not None and amount != "":
+        try:
+            amount_hint = f"amount {abs(float(amount))}"
+        except (TypeError, ValueError):
+            amount_hint = ""
+    hints = [
+        f"account {clean_text(account_id, max_length=64)}" if account_id else "",
+        currency if currency and currency.casefold() != "unknown" else "",
+        amount_hint,
+    ]
+    return " ".join(part for part in hints if part).strip() or "manual entry"
+
+
 def amount_bucket(value) -> str:
     if value is None or value == "":
         return "unknown"
@@ -31,14 +79,7 @@ def weekday_token(value: str | None) -> str:
 
 
 def compute_features(transaction: dict[str, Any]) -> dict[str, Any]:
-    description = str(
-        transaction.get("transaction_description")
-        or transaction.get("transactionDescription")
-        or transaction.get("imported_description")
-        or transaction.get("importedDescription")
-        or transaction.get("notes")
-        or "manual entry"
-    ).strip()
+    description = fallback_description(transaction)
 
     return {
         "transaction_description": description,

@@ -1,6 +1,10 @@
 # Sample Data
 /data/*
 !data/.gitkeep
+!data/tests/
+!data/tests/*.py
+data/**/__pycache__/
+data/**/*.pyc
 /data2
 Actual-*
 !actual-server.js
