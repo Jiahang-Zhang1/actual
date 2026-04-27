@@ -273,6 +273,8 @@ type MlFeedbackPrediction = Omit<MlPrediction, 'top_categories'> & {
   }>;
 };
 
+const ML_PREDICTION_BATCH_SIZE = 25;
+
 const ML_CATEGORY_ALIASES: Record<string, string[]> = {
   'charity and donations': ['Gift'],
   'entertainment and recreation': ['Entertainment'],
@@ -577,41 +579,55 @@ class AccountInternal extends PureComponent<
       candidates.map(transaction => [transaction.id, null]),
     );
 
-    try {
-      // Batch prediction is preferred so large account tables do not lose
-      // suggestions due per-row request bursts.
-      const results = (await send('ml-predict-category-batch', {
-        items: candidates.map(transaction => ({
-          transactionId: transaction.id,
-          payload: this.buildPredictionPayload(transaction),
-        })),
-      })) as Array<{
-        transactionId?: string;
-        prediction?: unknown;
-      }>;
+    const predictionsById: Record<string, MlPrediction | null> = {
+      ...initialById,
+    };
 
-      if (!Array.isArray(results)) {
-        return initialById;
-      }
+    for (
+      let index = 0;
+      index < candidates.length;
+      index += ML_PREDICTION_BATCH_SIZE
+    ) {
+      const chunk = candidates.slice(index, index + ML_PREDICTION_BATCH_SIZE);
 
-      return results.reduce<Record<string, MlPrediction | null>>(
-        (acc, item) => {
-          if (!item || !item.transactionId || !(item.transactionId in acc)) {
-            return acc;
+      try {
+        // Batch prediction is preferred so large account tables do not lose
+        // suggestions due per-row request bursts. Keep chunks small enough for
+        // manual demo pages with many existing rows and a short ML timeout.
+        const results = (await send('ml-predict-category-batch', {
+          items: chunk.map(transaction => ({
+            transactionId: transaction.id,
+            payload: this.buildPredictionPayload(transaction),
+          })),
+        })) as Array<{
+          transactionId?: string;
+          prediction?: unknown;
+        }>;
+
+        if (!Array.isArray(results)) {
+          continue;
+        }
+
+        results.forEach(item => {
+          if (
+            !item ||
+            !item.transactionId ||
+            !(item.transactionId in predictionsById)
+          ) {
+            return;
           }
 
-          acc[item.transactionId] = this.toMlPrediction(
+          predictionsById[item.transactionId] = this.toMlPrediction(
             item.transactionId,
             item.prediction,
           );
-          return acc;
-        },
-        initialById,
-      );
-    } catch (e) {
-      console.error('Failed to get batch realtime ML predictions', e);
-      return initialById;
+        });
+      } catch (e) {
+        console.error('Failed to get batch realtime ML predictions', e);
+      }
     }
+
+    return predictionsById;
   };
 
   refreshMlPredictions = async (transactions: TransactionEntity[]) => {
@@ -641,7 +657,10 @@ class AccountInternal extends PureComponent<
 
     await Promise.all(
       candidates.map(async transaction => {
-        const realtimePrediction = batchPredictionsById[transaction.id];
+        const realtimePrediction =
+          batchPredictionsById[transaction.id] ??
+          (await this.getRealtimePrediction(transaction));
+
         if (realtimePrediction) {
           predictionsById[transaction.id] = realtimePrediction;
           return;
