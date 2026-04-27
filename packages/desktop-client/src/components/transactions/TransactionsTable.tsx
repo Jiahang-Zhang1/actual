@@ -580,43 +580,75 @@ function getCompactCategoryName(categoryName: string) {
   return compactNames[categoryName] ?? categoryName;
 }
 
-async function mirrorMlFeedbackToServing({
-  transactionId,
-  suggestion,
+function normalizeMlCategoryKey(value: null | string | undefined) {
+  return (value ?? '')
+    .replace(/&/g, 'and')
+    .replace(/[^a-zA-Z0-9]+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+function getMlCategoryMatchKey({
   categoryGroups,
   categoryId,
+  suggestion,
 }: {
-  transactionId: TransactionEntity['id'] | null | undefined;
-  suggestion: MlSuggestion | null;
   categoryGroups: CategoryGroupEntity[];
-  categoryId: string;
+  categoryId: null | string | undefined;
+  suggestion?: MlSuggestion | null;
 }) {
-  if (!transactionId || !suggestion?.modelVersion) {
-    return;
+  if (!categoryId) {
+    return '';
   }
 
-  const candidateCategoryIds = suggestion.topCategories.map(item =>
-    getCategoryDisplayName(categoryGroups, item.category_id, suggestion),
-  );
+  const categoriesById = getCategoriesById(categoryGroups);
+  const actualCategoryName = categoriesById[categoryId]?.name;
+  if (actualCategoryName) {
+    return normalizeMlCategoryKey(actualCategoryName);
+  }
 
-  await fetch('/smartcat/feedback', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      transaction_id: transactionId,
-      model_version: suggestion.modelVersion,
-      predicted_category_id: candidateCategoryIds[0],
-      applied_category_id: getCategoryDisplayName(
-        categoryGroups,
-        categoryId,
-        suggestion,
-      ),
-      confidence: suggestion.confidence,
-      candidate_category_ids: candidateCategoryIds,
-    }),
-  }).catch(() => undefined);
+  const matchingSuggestion = suggestion?.topCategories.find(
+    item =>
+      item.category_id === categoryId || item.category_name === categoryId,
+  );
+  if (matchingSuggestion) {
+    return normalizeMlCategoryKey(
+      matchingSuggestion.category_name ||
+        categoriesById[matchingSuggestion.category_id]?.name ||
+        matchingSuggestion.category_id,
+    );
+  }
+
+  return normalizeMlCategoryKey(categoryId);
+}
+
+function isMlCategoryMatch({
+  categoryGroups,
+  selectedCategoryId,
+  suggestion,
+  item,
+}: {
+  categoryGroups: CategoryGroupEntity[];
+  selectedCategoryId: null | string | undefined;
+  suggestion: MlSuggestion | null;
+  item: MlSuggestion['topCategories'][number];
+}) {
+  const selectedKey = getMlCategoryMatchKey({
+    categoryGroups,
+    categoryId: selectedCategoryId,
+    suggestion,
+  });
+
+  if (!selectedKey) {
+    return false;
+  }
+
+  const categoriesById = getCategoriesById(categoryGroups);
+  return [
+    item.category_id,
+    item.category_name,
+    categoriesById[item.category_id]?.name,
+  ].some(value => normalizeMlCategoryKey(value) === selectedKey);
 }
 
 function AIPredictionsCell({
@@ -638,17 +670,19 @@ function AIPredictionsCell({
     );
   }
 
-  const topCategory =
-    suggestion.topCategories.find(
-      item => item.category_id === selectedCategoryId,
-    ) ?? suggestion.topCategories[0];
+  const topCategory = suggestion.topCategories[0];
   const fullCategoryName = getCategoryDisplayName(
     categoryGroups,
     topCategory.category_id,
     suggestion,
   );
   const categoryName = getCompactCategoryName(fullCategoryName);
-  const isSelected = selectedCategoryId === topCategory.category_id;
+  const isSelected = isMlCategoryMatch({
+    categoryGroups,
+    selectedCategoryId,
+    suggestion,
+    item: topCategory,
+  });
   const confidenceLabel = `${(topCategory.score * 100).toFixed(1)}%`;
 
   const content = (
@@ -668,7 +702,7 @@ function AIPredictionsCell({
           whiteSpace: 'nowrap',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
-          fontWeight: isSelected ? 600 : 400,
+          fontWeight: 600,
         }}
         title={`${fullCategoryName} (${confidenceLabel})`}
       >
@@ -685,9 +719,10 @@ function AIPredictionsCell({
           width: '100%',
           padding: '3px 6px',
           borderRadius: 4,
-          border: `1px solid ${
-            isSelected ? theme.noticeTextLight : theme.tableBorder
-          }`,
+          border: `1px solid ${theme.noticeTextLight}`,
+          backgroundColor: isSelected
+            ? theme.noticeBackground
+            : theme.noticeBackgroundLight,
         }}
       >
         {content}
@@ -703,12 +738,10 @@ function AIPredictionsCell({
         width: '100%',
         padding: '3px 6px',
         borderRadius: 4,
-        border: `1px solid ${
-          isSelected ? theme.noticeTextLight : theme.tableBorder
-        }`,
+        border: `1px solid ${theme.noticeTextLight}`,
         backgroundColor: isSelected
           ? theme.noticeBackground
-          : theme.tableBackground,
+          : theme.noticeBackgroundLight,
       }}
     >
       {content}
@@ -752,8 +785,31 @@ function AITopThreeCell({
           suggestion,
         );
         const categoryName = getCompactCategoryName(fullCategoryName);
-        const isSelected = selectedCategoryId === item.category_id;
+        const isTopPrediction = index === 0;
+        const isSelected = isMlCategoryMatch({
+          categoryGroups,
+          selectedCategoryId,
+          suggestion,
+          item,
+        });
         const confidenceLabel = `${(item.score * 100).toFixed(1)}%`;
+        const isUserCorrection = isSelected && !isTopPrediction;
+        const borderColor = isUserCorrection
+          ? theme.warningBorder
+          : isTopPrediction || isSelected
+            ? theme.noticeTextLight
+            : theme.tableBorder;
+        const backgroundColor = isUserCorrection
+          ? theme.warningBackground
+          : isTopPrediction
+            ? isSelected
+              ? theme.noticeBackground
+              : theme.noticeBackgroundLight
+            : theme.tableBackground;
+        const textColor = isUserCorrection
+          ? theme.warningTextDark
+          : theme.tableText;
+        const fontWeight = isSelected || isTopPrediction ? 600 : 400;
 
         const content = (
           <View
@@ -772,8 +828,9 @@ function AITopThreeCell({
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                fontWeight: isSelected ? 600 : 400,
+                fontWeight,
                 fontSize: 12,
+                color: textColor,
               }}
               title={`${index + 1}. ${fullCategoryName} (${confidenceLabel})`}
             >
@@ -783,7 +840,7 @@ function AITopThreeCell({
               style={{
                 color: isSelected ? theme.tableText : theme.pageTextSubdued,
                 fontSize: 12,
-                fontWeight: isSelected ? 600 : 400,
+                fontWeight,
               }}
             >
               {confidenceLabel}
@@ -800,9 +857,8 @@ function AITopThreeCell({
                 minWidth: 0,
                 padding: '2px 4px',
                 borderRadius: 4,
-                border: `1px solid ${
-                  isSelected ? theme.noticeTextLight : theme.tableBorder
-                }`,
+                border: `1px solid ${borderColor}`,
+                backgroundColor,
               }}
               title={`${index + 1}. ${fullCategoryName} (${confidenceLabel})`}
             >
@@ -822,12 +878,8 @@ function AITopThreeCell({
               minWidth: 0,
               padding: '2px 4px',
               borderRadius: 4,
-              border: `1px solid ${
-                isSelected ? theme.noticeTextLight : theme.tableBorder
-              }`,
-              backgroundColor: isSelected
-                ? theme.noticeBackground
-                : theme.tableBackground,
+              border: `1px solid ${borderColor}`,
+              backgroundColor,
             }}
           >
             {content}
@@ -1552,9 +1604,22 @@ const Transaction = memo(function Transaction({
 
   useEffect(() => {
     setUserSelectedMlCategoryId(current =>
-      current && categoryId && current !== categoryId ? null : current,
+      current &&
+      categoryId &&
+      getMlCategoryMatchKey({
+        categoryGroups,
+        categoryId: current,
+        suggestion: mlSuggestion,
+      }) !==
+        getMlCategoryMatchKey({
+          categoryGroups,
+          categoryId,
+          suggestion: mlSuggestion,
+        })
+        ? null
+        : current,
     );
-  }, [categoryId]);
+  }, [categoryGroups, categoryId, mlSuggestion]);
 
   // Only a user click or an already-applied Actual category should render as
   // selected; the top prediction itself is a suggestion, not a second category.
@@ -2223,12 +2288,6 @@ const Transaction = memo(function Transaction({
               !isPreview && onApplyMlSuggestion
                 ? categoryId => {
                     setUserSelectedMlCategoryId(categoryId);
-                    void mirrorMlFeedbackToServing({
-                      transactionId: originalTransaction.id,
-                      suggestion: mlSuggestion,
-                      categoryGroups,
-                      categoryId,
-                    });
                     return onApplyMlSuggestion(originalTransaction, categoryId);
                   }
                 : undefined

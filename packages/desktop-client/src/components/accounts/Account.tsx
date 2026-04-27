@@ -854,7 +854,6 @@ class AccountInternal extends PureComponent<
       transactionId: transaction.id,
       finalCategoryId: appliedCategoryId,
       prediction,
-      syncToServing: false,
     });
 
     await send('transactions-batch-update', {
