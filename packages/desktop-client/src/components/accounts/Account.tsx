@@ -504,17 +504,25 @@ class AccountInternal extends PureComponent<
       return null;
     }
 
-    const topCategories = [...this.getTopCategories(prediction)]
-      .sort((left, right) => right.score - left.score)
-      .slice(0, 3)
-      .map(item => {
-        const resolved = this.resolveMlCategory(item.category_id);
-        return {
-          ...item,
-          category_id: resolved.categoryId,
-          category_name: resolved.categoryName,
-        };
+    const topCategories: NonNullable<MlPrediction['top_categories']> = [];
+    const seenCategoryIds = new Set<string>();
+    for (const item of [...this.getTopCategories(prediction)].sort(
+      (left, right) => right.score - left.score,
+    )) {
+      const resolved = this.resolveMlCategory(item.category_id);
+      if (seenCategoryIds.has(resolved.categoryId)) {
+        continue;
+      }
+      seenCategoryIds.add(resolved.categoryId);
+      topCategories.push({
+        ...item,
+        category_id: resolved.categoryId,
+        category_name: resolved.categoryName,
       });
+      if (topCategories.length >= 3) {
+        break;
+      }
+    }
 
     if (topCategories.length === 0) {
       return null;

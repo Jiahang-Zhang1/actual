@@ -791,7 +791,7 @@ function AITopThreeCell({
           </View>
         );
 
-        if (!onAccept) {
+        if (!onAccept || isSelected) {
           return (
             <View
               key={`${item.category_id}-${index}`}
@@ -1556,10 +1556,9 @@ const Transaction = memo(function Transaction({
     );
   }, [categoryId]);
 
-  // AI starts on the highest-confidence candidate, then follows the user's
-  // explicit top-k choice so the visible suggestion matches feedback.
-  const selectedMlCategoryId =
-    userSelectedMlCategoryId || topPredictedCategoryId || null;
+  // Only a user click or an already-applied Actual category should render as
+  // selected; the top prediction itself is a suggestion, not a second category.
+  const selectedMlCategoryId = userSelectedMlCategoryId || categoryId || null;
   const effectiveCategoryId =
     userSelectedMlCategoryId || categoryId || topPredictedCategoryId || null;
   const formatCategoryCellValue = (value: string | null | undefined) =>
@@ -2204,20 +2203,6 @@ const Transaction = memo(function Transaction({
             suggestion={mlSuggestion}
             categoryGroups={categoryGroups}
             selectedCategoryId={selectedMlCategoryId}
-            onAccept={
-              !isPreview && onApplyMlSuggestion
-                ? categoryId => {
-                    setUserSelectedMlCategoryId(categoryId);
-                    void mirrorMlFeedbackToServing({
-                      transactionId: originalTransaction.id,
-                      suggestion: mlSuggestion,
-                      categoryGroups,
-                      categoryId,
-                    });
-                    return onApplyMlSuggestion(originalTransaction, categoryId);
-                  }
-                : undefined
-            }
           />
         </Cell>
         <Cell

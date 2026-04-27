@@ -1,5 +1,9 @@
+from types import SimpleNamespace
+
+import numpy as np
 from fastapi.testclient import TestClient
 
+from app.main import _response_from_row
 from app.main import app
 
 
@@ -17,6 +21,25 @@ class DummyBackend:
 
     def providers(self):
         return ["dummy"]
+
+
+def test_response_top_categories_are_unique_after_ranking(monkeypatch):
+    monkeypatch.setattr(
+        "app.main._current_settings",
+        lambda: SimpleNamespace(top_k=3, model_version="test-version"),
+    )
+
+    response = _response_from_row(
+        np.array([0.6, 0.25, 0.1, 0.05]),
+        ["General", "Income", "General", "Food & Dining"],
+        record_observability=False,
+    )
+
+    assert [item.category_id for item in response.top_categories] == [
+        "General",
+        "Income",
+        "Food & Dining",
+    ]
 
 
 def test_predict_endpoint_contract(monkeypatch):

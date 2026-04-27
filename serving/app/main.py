@@ -410,11 +410,18 @@ def _response_from_row(
     record_observability: bool = True,
 ) -> PredictResponse:
     current_settings = _current_settings()
-    ordered_idx = np.argsort(probabilities)[::-1][: current_settings.top_k]
-    top_categories = [
-        CategoryScore(category_id=str(classes[idx]), score=round(float(probabilities[idx]), 6))
-        for idx in ordered_idx
-    ]
+    top_categories: list[CategoryScore] = []
+    seen_categories: set[str] = set()
+    for idx in np.argsort(probabilities)[::-1]:
+        category_id = str(classes[idx])
+        if category_id in seen_categories:
+            continue
+        seen_categories.add(category_id)
+        top_categories.append(
+            CategoryScore(category_id=category_id, score=round(float(probabilities[idx]), 6))
+        )
+        if len(top_categories) >= current_settings.top_k:
+            break
 
     predicted_label = top_categories[0].category_id
     confidence = top_categories[0].score
