@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 
 class _Model(BaseModel):
@@ -13,6 +13,7 @@ class PredictRequest(_Model):
     model_config = ConfigDict(
         protected_namespaces=(),
         extra="ignore",
+        populate_by_name=True,
         json_schema_extra={
             "examples": [
                 {
@@ -36,26 +37,108 @@ class PredictRequest(_Model):
         },
     )
 
-    transaction_description: Optional[str] = None
-    transaction_description_clean: Optional[str] = None
-    merchant_text: Optional[str] = None
+    transaction_description: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("transaction_description", "transactionDescription"),
+    )
+    transaction_description_clean: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "transaction_description_clean",
+            "transactionDescriptionClean",
+        ),
+    )
+    merchant_text: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("merchant_text", "merchantText"),
+    )
 
     country: Optional[str] = "US"
     currency: Optional[str] = "USD"
 
-    amount: Optional[float] = None
-    transaction_date: Optional[str] = None
-    account_type: Optional[str] = None
-    account_id: Optional[str] = None
-    imported_description: Optional[str] = None
+    amount: Optional[float] = Field(
+        default=None,
+        validation_alias=AliasChoices("amount", "transaction_amount", "transactionAmount"),
+    )
+    transaction_date: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("transaction_date", "transactionDate"),
+    )
+    account_type: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("account_type", "accountType"),
+    )
+    account_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("account_id", "accountId", "account"),
+    )
+    imported_description: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("imported_description", "importedDescription"),
+    )
     notes: Optional[str] = None
-    description_length: Optional[int] = None
+    description_length: Optional[int] = Field(
+        default=None,
+        validation_alias=AliasChoices("description_length", "descriptionLength"),
+    )
+
+    @field_validator(
+        "transaction_description",
+        "transaction_description_clean",
+        "merchant_text",
+        "country",
+        "currency",
+        "transaction_date",
+        "account_type",
+        "account_id",
+        "imported_description",
+        "notes",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_optional_text(cls, value: Any) -> str | None:
+        if value is None:
+            return None
+        text = str(value).replace("\n", " ").strip()
+        return text or None
+
+    @field_validator("amount", mode="before")
+    @classmethod
+    def _coerce_amount(cls, value: Any) -> float | None:
+        if value is None:
+            return None
+        if isinstance(value, str):
+            cleaned = value.strip().replace(",", "")
+            if cleaned.startswith("$"):
+                cleaned = cleaned[1:].strip()
+            if cleaned.startswith("(") and cleaned.endswith(")"):
+                cleaned = f"-{cleaned[1:-1]}"
+            if not cleaned:
+                return None
+            value = cleaned
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @field_validator("description_length", mode="before")
+    @classmethod
+    def _coerce_description_length(cls, value: Any) -> int | None:
+        if value is None:
+            return None
+        if isinstance(value, str) and not value.strip():
+            return None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
 
 
 class BatchPredictRequest(_Model):
     model_config = ConfigDict(
         protected_namespaces=(),
         extra="ignore",
+        populate_by_name=True,
         json_schema_extra={
             "examples": [
                 {
@@ -76,7 +159,19 @@ class BatchPredictRequest(_Model):
         },
     )
 
-    items: List[PredictRequest] = Field(default_factory=list)
+    items: List[PredictRequest] = Field(
+        default_factory=list,
+        validation_alias=AliasChoices("items", "transactions", "records"),
+    )
+
+    @field_validator("items", mode="before")
+    @classmethod
+    def _coerce_items(cls, value: Any) -> list[Any]:
+        if value is None:
+            return []
+        if isinstance(value, dict):
+            return [value]
+        return value
 
 
 class CategoryScore(_Model):

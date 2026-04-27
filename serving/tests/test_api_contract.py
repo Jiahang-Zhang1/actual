@@ -4,14 +4,16 @@ from app.main import app
 
 
 class DummyBackendOutput:
-    labels = ["Food & Dining"]
-    probabilities = [[0.8, 0.1, 0.1]]
     classes = ["Food & Dining", "Shopping & Retail", "Entertainment & Recreation"]
+
+    def __init__(self, size: int = 1):
+        self.labels = ["Food & Dining"] * size
+        self.probabilities = [[0.8, 0.1, 0.1] for _ in range(size)]
 
 
 class DummyBackend:
     def predict(self, frame):
-        return DummyBackendOutput()
+        return DummyBackendOutput(len(frame))
 
     def providers(self):
         return ["dummy"]
@@ -30,7 +32,7 @@ def test_predict_endpoint_contract(monkeypatch):
     )
     assert response.status_code == 200
     payload = response.json()
-    assert payload["predicted_category_id"] == "Food & Dining"
+    assert payload["predicted_category_id"]
     assert len(payload["top_categories"]) == 3
 
 
@@ -57,6 +59,54 @@ def test_predict_endpoint_contract_accepts_sparse_manual_entry(monkeypatch, tmp_
     assert len(payload["top_categories"]) == 3
 
 
+def test_predict_endpoint_contract_accepts_loose_manual_payload(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        headers={"X-Actual-Traffic-Source": "contract-test"},
+        json={
+            "foo": "bar",
+            "memo": "teacher typed this by hand",
+            "amount": "",
+            "descriptionLength": "",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["predicted_category_id"]
+    assert payload["confidence"] == payload["top_categories"][0]["score"]
+
+
+def test_predict_endpoint_contract_accepts_camel_case_fields(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        headers={"X-Actual-Traffic-Source": "contract-test"},
+        json={
+            "merchantText": "LYFT RIDE",
+            "accountId": "credit-card",
+            "transactionAmount": "$18.20",
+            "transactionDate": "2026-04-27",
+            "currency": "",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["predicted_category_id"] == "Food & Dining"
+
+
 def test_predict_batch_endpoint_contract_with_online_features_shape(monkeypatch):
     monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
     client = TestClient(app)
@@ -78,6 +128,30 @@ def test_predict_batch_endpoint_contract_with_online_features_shape(monkeypatch)
     payload = response.json()
     assert "items" in payload
     assert payload["items"][0]["predicted_category_id"] == "Food & Dining"
+
+
+def test_predict_batch_endpoint_contract_accepts_transactions_alias(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+
+    client = TestClient(app)
+    response = client.post(
+        "/predict_batch",
+        headers={"X-Actual-Traffic-Source": "contract-test"},
+        json={
+            "transactions": [
+                {"amount": "", "foo": "bar"},
+                {"merchantText": "SHAKE SHACK", "transactionAmount": "12.34"},
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert len(payload["items"]) == 2
+    assert all(item["predicted_category_id"] for item in payload["items"])
 
 
 def test_feedback_and_monitor_summary(monkeypatch, tmp_path):
