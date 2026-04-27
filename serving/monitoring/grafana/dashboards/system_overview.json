@@ -7,8 +7,10 @@
   "refresh": "5s",
   "tags": [
     "actual",
+    "demo",
     "ml",
-    "overview"
+    "overview",
+    "serving"
   ],
   "time": {
     "from": "now-1h",
@@ -33,7 +35,7 @@
       },
       "options": {
         "mode": "markdown",
-        "content": "One-screen health check for the integrated demo. Use this during the defense to show that serving is up, traffic is flowing, latency/error SLOs are safe, and model feedback is being captured."
+        "content": "Project-first overview for the demo. Use this before opening generic Kubernetes dashboards: Serving Up proves Prometheus can scrape SmartCat, Live Request Rate proves user traffic is entering `/predict` or `/predict_batch`, p95/5xx gates prove serving safety, and feedback/confidence panels prove model behavior is monitored."
       }
     },
     {
@@ -76,8 +78,8 @@
     {
       "id": 3,
       "type": "stat",
-      "title": "Request Rate",
-      "description": "Predict and predict_batch requests per second.",
+      "title": "Live Request Rate",
+      "description": "Real /predict and /predict_batch requests per second. Synthetic smoke/load traffic is excluded.",
       "gridPos": {
         "x": 4,
         "y": 3,
@@ -114,8 +116,8 @@
     {
       "id": 4,
       "type": "stat",
-      "title": "p95 Latency",
-      "description": "Rollback threshold is 250 ms; promotion threshold is 100 ms.",
+      "title": "p95 Latency Gate",
+      "description": "Promotion target is <=100 ms; rollback danger is >250 ms.",
       "gridPos": {
         "x": 8,
         "y": 3,
@@ -140,6 +142,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 100
+              },
+              {
+                "color": "red",
+                "value": 250
               }
             ]
           },
@@ -152,8 +162,8 @@
     {
       "id": 5,
       "type": "stat",
-      "title": "5xx Error Rate",
-      "description": "Rollback threshold is 2%; promotion threshold is 1.",
+      "title": "5xx Error Gate",
+      "description": "Promotion target is <=1%; rollback danger is >2%.",
       "gridPos": {
         "x": 12,
         "y": 3,
@@ -178,6 +188,14 @@
               {
                 "color": "green",
                 "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.01
+              },
+              {
+                "color": "red",
+                "value": 0.02
               }
             ]
           },
@@ -264,8 +282,8 @@
     {
       "id": 8,
       "type": "timeseries",
-      "title": "Traffic and Latency",
-      "description": "Traffic should rise during simulated user testing; p95 should remain below rollback threshold.",
+      "title": "Live Traffic vs Latency",
+      "description": "During demo traffic this should show requests rising while p95 latency stays below the rollback gate.",
       "gridPos": {
         "x": 0,
         "y": 7,
@@ -459,6 +477,13 @@
         "overrides": []
       },
       "options": {}
+    }
+  ],
+  "links": [
+    {
+      "title": "Traffic Control",
+      "url": "/d/actual-ml-traffic-control/smartcat-traffic-control",
+      "targetBlank": false
     }
   ]
 }
