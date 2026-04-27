@@ -496,7 +496,7 @@ async def request_logging_middleware(request: Request, call_next):
         ):
             handler = request.url.path
             latency_ms = round((time.perf_counter() - start) * 1000.0, 4)
-            status_label = f"{max(status_code, 500) // 100}xx"
+            status_label = f"{status_code // 100}xx"
             live_http_requests_total.labels(handler=handler, status=status_label).inc()
             live_http_request_duration_seconds.labels(handler=handler).observe(latency_ms / 1000.0)
             _safe_append_jsonl(

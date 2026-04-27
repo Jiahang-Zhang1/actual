@@ -11,6 +11,23 @@ def _clean_text(value: object | None) -> str:
     return str(value or "").strip()
 
 
+def _same_clean_text(left: object | None, right: object | None) -> bool:
+    return _clean_text(left).casefold() == _clean_text(right).casefold()
+
+
+def _looks_like_generated_fallback(value: str, item: PredictRequest) -> bool:
+    normalized = " ".join(_clean_text(value).casefold().split())
+    if normalized == "manual entry":
+        return True
+
+    account = _clean_text(item.account_id).casefold()
+    currency = _clean_text(item.currency).casefold()
+    has_account_hint = bool(account and f"account {account}" in normalized)
+    has_currency_hint = bool(currency and currency != "unknown" and currency in normalized)
+    has_amount_hint = "amount " in normalized
+    return has_amount_hint and (has_account_hint or has_currency_hint)
+
+
 def choose_description(item: PredictRequest) -> str:
     for value in (
         item.transaction_description,
@@ -26,7 +43,22 @@ def choose_description(item: PredictRequest) -> str:
 
 
 def description_source(item: PredictRequest) -> str:
-    if _clean_text(item.transaction_description):
+    transaction_description = _clean_text(item.transaction_description)
+    if transaction_description:
+        if _looks_like_generated_fallback(transaction_description, item):
+            return "derived"
+        if item.imported_description and _same_clean_text(
+            transaction_description,
+            item.imported_description,
+        ):
+            return "imported_description"
+        if item.notes and _same_clean_text(transaction_description, item.notes):
+            return "notes"
+        if item.merchant_text and _same_clean_text(
+            transaction_description,
+            item.merchant_text,
+        ):
+            return "merchant_text"
         return "transaction_description"
     if _clean_text(item.transaction_description_clean):
         return "transaction_description_clean"

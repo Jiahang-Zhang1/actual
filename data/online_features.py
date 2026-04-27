@@ -17,6 +17,11 @@ def choose_description(transaction: dict[str, Any]) -> str:
         "transactionDescriptionClean",
         "merchant_text",
         "merchantText",
+        "merchant",
+        "merchantName",
+        "payee",
+        "payee_name",
+        "payeeName",
         "imported_description",
         "importedDescription",
         "notes",
@@ -32,7 +37,14 @@ def fallback_description(transaction: dict[str, Any]) -> str:
     if description:
         return description
 
-    amount = transaction.get("amount")
+    amount = (
+        transaction.get("amount")
+        or transaction.get("transaction_amount")
+        or transaction.get("transactionAmount")
+        or transaction.get("payment")
+        or transaction.get("deposit")
+        or transaction.get("value")
+    )
     account_id = (
         transaction.get("account_id")
         or transaction.get("accountId")
@@ -80,19 +92,37 @@ def weekday_token(value: str | None) -> str:
 
 def compute_features(transaction: dict[str, Any]) -> dict[str, Any]:
     description = fallback_description(transaction)
+    amount = (
+        transaction.get("amount")
+        or transaction.get("transaction_amount")
+        or transaction.get("transactionAmount")
+        or transaction.get("payment")
+        or transaction.get("deposit")
+        or transaction.get("value")
+    )
+    merchant_text = (
+        transaction.get("merchant_text")
+        or transaction.get("merchantText")
+        or transaction.get("merchant")
+        or transaction.get("merchantName")
+        or transaction.get("payee")
+        or transaction.get("payee_name")
+        or transaction.get("payeeName")
+    )
 
     return {
         "transaction_description": description,
+        "merchant_text": clean_text(merchant_text, max_length=256) or None,
         "country": str(transaction.get("country") or "unknown").strip() or "unknown",
         "currency": str(transaction.get("currency") or "unknown").strip() or "unknown",
-        "amount": transaction.get("amount"),
+        "amount": amount,
         "transaction_date": transaction.get("transaction_date")
         or transaction.get("transactionDate"),
         "account_id": transaction.get("account_id") or transaction.get("accountId"),
         "notes": transaction.get("notes"),
         "imported_description": transaction.get("imported_description")
         or transaction.get("importedDescription"),
-        "amount_bucket": amount_bucket(transaction.get("amount")),
+        "amount_bucket": amount_bucket(amount),
         "weekday": weekday_token(
             transaction.get("transaction_date") or transaction.get("transactionDate")
         ),
@@ -102,6 +132,7 @@ def compute_features(transaction: dict[str, Any]) -> dict[str, Any]:
 def format_for_serving(features: dict[str, Any]) -> dict[str, Any]:
     return {
         "transaction_description": features["transaction_description"],
+        "merchant_text": features.get("merchant_text"),
         "country": features["country"],
         "currency": features["currency"],
         "amount": features.get("amount"),

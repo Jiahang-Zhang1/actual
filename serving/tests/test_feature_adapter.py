@@ -1,4 +1,4 @@
-from app.feature_adapter import build_feature_frame
+from app.feature_adapter import build_feature_frame, description_source
 from app.schemas import PredictRequest
 
 
@@ -70,3 +70,18 @@ def test_build_feature_frame_falls_back_to_manual_entry_when_text_is_missing():
     assert description.startswith("manual entry")
     assert "description_source=derived" in description
     assert "amount_bucket=small" in description
+
+
+def test_generated_account_amount_fallback_is_treated_as_derived():
+    request = PredictRequest(
+        transaction_description="account checking-account USD amount 24.99",
+        account_id="checking-account",
+        currency="USD",
+        amount=24.99,
+    )
+
+    assert description_source(request) == "derived"
+    frame = build_feature_frame([request])
+    description = frame.iloc[0]["transaction_description"]
+    assert description.startswith("account checking-account usd amount 24.99")
+    assert "description_source=derived" in description

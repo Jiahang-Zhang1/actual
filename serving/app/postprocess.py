@@ -94,17 +94,20 @@ def blend_keyword_rule(
     matrix = np.asarray(probabilities, dtype=float).copy()
     class_to_index = {label: idx for idx, label in enumerate(classes)}
     target_idx = class_to_index[matched_category]
+    primary_idx = int(np.argmax(matrix))
+    primary_label = classes[primary_idx]
     top1_confidence = float(np.max(matrix))
     max_primary_confidence = float(keyword_policy.get("max_primary_confidence", 0.55))
     high_confidence_override = float(keyword_policy.get("high_confidence_override", 0.82))
     blend_weight = float(keyword_policy.get("blend_weight", 0.35))
     blend_weight = min(max(blend_weight, 0.0), 1.0)
 
-    if top1_confidence > max_primary_confidence and int(np.argmax(matrix)) == target_idx:
+    if top1_confidence > max_primary_confidence and primary_idx == target_idx:
         return matrix
     if (
         top1_confidence > high_confidence_override
         and description_source not in {"notes", "derived"}
+        and not (primary_label == "Income" and matched_category != "Income")
     ):
         return matrix
 
@@ -247,6 +250,8 @@ def blend_sparse_prior(
     )
     blend_weight = min(max(blend_weight, 0.0), 1.0)
     max_primary_confidence = float(sparse_policy.get("max_primary_confidence", 0.62))
+    primary_label = classes[int(np.argmax(matrix))]
+    prior_label = classes[int(np.argmax(prior))]
 
     if (
         float(np.max(matrix)) > max_primary_confidence
@@ -254,6 +259,8 @@ def blend_sparse_prior(
         and account_prior_vector is None
     ):
         blend_weight = max(blend_weight, float(sparse_policy.get("high_confidence_no_signal_blend_weight", 0.92)))
+    if primary_label == "Income" and prior_label != "Income":
+        blend_weight = max(blend_weight, float(sparse_policy.get("income_bias_blend_weight", 0.88)))
 
     blended = ((1.0 - blend_weight) * matrix) + (blend_weight * prior)
     return _normalize_rows(blended)
@@ -295,6 +302,7 @@ def default_confidence_policy() -> dict[str, Any]:
             "blend_weight": 0.68,
             "no_signal_blend_weight": 0.94,
             "high_confidence_no_signal_blend_weight": 0.97,
+            "income_bias_blend_weight": 0.88,
             "max_primary_confidence": 0.62,
             "amount_prior_weight": 0.72,
             "account_prior_weight": 0.25,

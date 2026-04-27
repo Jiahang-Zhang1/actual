@@ -71,11 +71,15 @@ SPARSE_VARIANTS = [
     "description_only",
     "notes_only",
     "amount_only",
+    "amount_only_positive_expense",
     "currency_only",
     "account_amount_only",
+    "account_positive_expense",
     "payee_no_notes",
+    "payee_positive_expense",
     "payee_amount_conflict",
     "payee_notes_conflict",
+    "income_text_positive",
     "camel_case_actual_payload",
     "invalid_amount_string",
     "empty_payload",
@@ -90,6 +94,8 @@ def sparse_payload(variant: str | None = None) -> dict:
         return {"notes": random.choice(NOTES)}
     if variant == "amount_only":
         return {"amount": random_amount()}
+    if variant == "amount_only_positive_expense":
+        return {"amount": round(random.uniform(3, 80), 2), "currency": random.choice(CURRENCIES)}
     if variant == "currency_only":
         return {"currency": random.choice(CURRENCIES)}
     if variant == "account_amount_only":
@@ -98,11 +104,24 @@ def sparse_payload(variant: str | None = None) -> dict:
             "amount": random_amount(),
             "currency": random.choice(CURRENCIES),
         }
+    if variant == "account_positive_expense":
+        return {
+            "account_id": random.choice(["credit-card", "transport-card", "shopping-card"]),
+            "amount": round(random.uniform(10, 120), 2),
+            "currency": random.choice(CURRENCIES),
+        }
     if variant == "payee_no_notes":
         return {
             "transaction_description": random.choice(DESCRIPTIONS),
             "notes": "",
             "amount": random_amount(),
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "payee_positive_expense":
+        return {
+            "transaction_description": random.choice(["LYFT RIDE", "UBER TRIP", "STARBUCKS STORE 1458", "TARGET STORE 0234"]),
+            "notes": "",
+            "amount": round(random.uniform(5, 95), 2),
             "currency": random.choice(CURRENCIES),
         }
     if variant == "payee_amount_conflict":
@@ -119,6 +138,13 @@ def sparse_payload(variant: str | None = None) -> dict:
             "transaction_description": "LYFT RIDE",
             "notes": "payroll deposit",
             "amount": -18.2,
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "income_text_positive":
+        return {
+            "transaction_description": random.choice(["PAYROLL DIRECT DEPOSIT", "SALARY PAYCHECK", "EMPLOYER PAYMENT"]),
+            "notes": "",
+            "amount": round(random.uniform(800, 4500), 2),
             "currency": random.choice(CURRENCIES),
         }
     if variant == "camel_case_actual_payload":

@@ -1,5 +1,5 @@
 {
-  "model_version": "v20260427184544",
+  "model_version": "v20260427192054",
   "code_version": "serving",
   "source_model_path": "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
   "optimized_model_paths": {
@@ -7,18 +7,16 @@
     "onnx_dynamic_quant": "/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx"
   },
   "sizes_mb": {
-    "source": 0.1703,
-    "onnx": 0.1118,
-    "onnx_dynamic_quant": 0.1122
+    "source": 0.1787,
+    "onnx": 0.1173,
+    "onnx_dynamic_quant": 0.1177
   },
   "validation_sample": {
     "sample": "LYFT 18.2 RIDE HOME",
     "baseline_label": "Transportation",
-    "onnx_label": "Transportation",
     "onnx_dynamic_quant_label": "Transportation",
-    "baseline_top1_confidence": 0.834541,
-    "onnx_top1_confidence": 0.825206,
-    "onnx_dynamic_quant_top1_confidence": 0.825206
+    "baseline_top1_confidence": 0.819416,
+    "onnx_dynamic_quant_top1_confidence": 0.815207
   },
   "classes": [
     "Charity & Donations",
@@ -35,21 +33,449 @@
   "training_metrics": {
     "validation": {
       "row_count": 360,
-      "top1_accuracy": 0.9666666666666667,
-      "macro_f1": 0.9686841395285258,
-      "top3_accuracy": 0.9833333333333333
+      "top1_accuracy": 0.9777777777777777,
+      "macro_f1": 0.9767759347530507,
+      "top3_accuracy": 0.9916666666666667
     },
     "test": {
       "row_count": 360,
-      "top1_accuracy": 0.9861111111111112,
-      "macro_f1": 0.9868973688015711,
-      "top3_accuracy": 0.9944444444444445
+      "top1_accuracy": 0.9833333333333333,
+      "macro_f1": 0.9861751947155672,
+      "top3_accuracy": 0.9916666666666667
     }
   },
-  "mlflow": {
-    "run_id": "0d093c7c74424f8295055a93cb801255",
-    "model_name": "actual-smart-transaction-categorizer",
-    "model_version": "1",
-    "production_alias": "production"
+  "postprocess_metrics": {
+    "row_count": 360,
+    "top1_accuracy": 0.9666666666666667,
+    "top3_accuracy": 0.9777777777777777,
+    "macro_f1": 0.9582005367363744,
+    "mapped_top1_accuracy": 0.9666666666666667,
+    "mapped_top3_accuracy": 0.9777777777777777,
+    "mapped_macro_f1": 0.9582005367363744,
+    "high_confidence_precision": 1.0,
+    "high_confidence_coverage": 0.8833333333333333,
+    "high_confidence_count": 318,
+    "validation": {
+      "row_count": 360,
+      "top1_accuracy": 0.9638888888888889,
+      "top3_accuracy": 0.9861111111111112,
+      "macro_f1": 0.9582059876179562,
+      "mapped_top1_accuracy": 0.9638888888888889,
+      "mapped_top3_accuracy": 0.9861111111111112,
+      "mapped_macro_f1": 0.9582059876179562,
+      "high_confidence_precision": 1.0,
+      "high_confidence_coverage": 0.8833333333333333,
+      "high_confidence_count": 318
+    },
+    "test": {
+      "row_count": 360,
+      "top1_accuracy": 0.9666666666666667,
+      "top3_accuracy": 0.9777777777777777,
+      "macro_f1": 0.9582005367363744,
+      "mapped_top1_accuracy": 0.9666666666666667,
+      "mapped_top3_accuracy": 0.9777777777777777,
+      "mapped_macro_f1": 0.9582005367363744,
+      "high_confidence_precision": 1.0,
+      "high_confidence_coverage": 0.8833333333333333,
+      "high_confidence_count": 318
+    },
+    "label_mapping_file": null,
+    "high_confidence_threshold": 0.7,
+    "taxonomy_version": "2026-04-23",
+    "confidence_policy": {
+      "method": "temperature_keyword_amount_conflict_sparse_fallback",
+      "temperature": 0.7,
+      "keyword_fallback": {
+        "enabled": true,
+        "blend_weight": 0.55,
+        "max_primary_confidence": 0.58,
+        "high_confidence_override": 0.82,
+        "allowed_sources": [
+          "transaction_description",
+          "transaction_description_clean",
+          "merchant_text",
+          "imported_description",
+          "notes",
+          "derived"
+        ]
+      },
+      "amount_conflict_fallback": {
+        "enabled": true,
+        "blend_weight": 0.18,
+        "allowed_sources": [
+          "transaction_description",
+          "transaction_description_clean",
+          "merchant_text",
+          "imported_description",
+          "notes"
+        ],
+        "amount_priors": {
+          "positive:micro": {
+            "Financial Services": 0.34,
+            "Shopping & Retail": 0.24,
+            "Food & Dining": 0.2,
+            "Income": 0.14,
+            "Utilities & Services": 0.08
+          },
+          "positive:small": {
+            "Shopping & Retail": 0.26,
+            "Transportation": 0.22,
+            "Food & Dining": 0.2,
+            "Financial Services": 0.18,
+            "Income": 0.14
+          },
+          "positive:medium": {
+            "Shopping & Retail": 0.28,
+            "Utilities & Services": 0.22,
+            "Financial Services": 0.2,
+            "Income": 0.18,
+            "Government & Legal": 0.12
+          },
+          "positive:large": {
+            "Income": 0.6,
+            "Financial Services": 0.18,
+            "Government & Legal": 0.1,
+            "Utilities & Services": 0.08,
+            "Shopping & Retail": 0.04
+          },
+          "negative:micro": {
+            "Food & Dining": 0.3,
+            "Entertainment & Recreation": 0.24,
+            "Healthcare & Medical": 0.2,
+            "Transportation": 0.14,
+            "Financial Services": 0.12
+          },
+          "negative:small": {
+            "Shopping & Retail": 0.28,
+            "Transportation": 0.22,
+            "Healthcare & Medical": 0.18,
+            "Food & Dining": 0.16,
+            "Charity & Donations": 0.16
+          },
+          "negative:medium": {
+            "Utilities & Services": 0.28,
+            "Government & Legal": 0.22,
+            "Financial Services": 0.18,
+            "Shopping & Retail": 0.16,
+            "Charity & Donations": 0.16
+          },
+          "negative:large": {
+            "Government & Legal": 0.34,
+            "Financial Services": 0.22,
+            "Utilities & Services": 0.18,
+            "Shopping & Retail": 0.14,
+            "Charity & Donations": 0.12
+          }
+        }
+      },
+      "sparse_fallback": {
+        "enabled": true,
+        "allowed_sources": [
+          "derived"
+        ],
+        "blend_weight": 0.68,
+        "no_signal_blend_weight": 0.94,
+        "high_confidence_no_signal_blend_weight": 0.97,
+        "income_bias_blend_weight": 0.88,
+        "max_primary_confidence": 0.62,
+        "amount_prior_weight": 0.72,
+        "account_prior_weight": 0.25,
+        "default_prior_weight": 0.22,
+        "default_prior": {
+          "Shopping & Retail": 0.34,
+          "Food & Dining": 0.27,
+          "Utilities & Services": 0.17,
+          "Transportation": 0.12,
+          "Entertainment & Recreation": 0.1
+        },
+        "amount_priors": {
+          "positive:micro": {
+            "Financial Services": 0.34,
+            "Shopping & Retail": 0.24,
+            "Food & Dining": 0.2,
+            "Income": 0.14,
+            "Utilities & Services": 0.08
+          },
+          "positive:small": {
+            "Shopping & Retail": 0.26,
+            "Transportation": 0.22,
+            "Food & Dining": 0.2,
+            "Financial Services": 0.18,
+            "Income": 0.14
+          },
+          "positive:medium": {
+            "Shopping & Retail": 0.28,
+            "Utilities & Services": 0.22,
+            "Financial Services": 0.2,
+            "Income": 0.18,
+            "Government & Legal": 0.12
+          },
+          "positive:large": {
+            "Income": 0.6,
+            "Financial Services": 0.18,
+            "Government & Legal": 0.1,
+            "Utilities & Services": 0.08,
+            "Shopping & Retail": 0.04
+          },
+          "negative:micro": {
+            "Food & Dining": 0.3,
+            "Entertainment & Recreation": 0.24,
+            "Healthcare & Medical": 0.2,
+            "Transportation": 0.14,
+            "Financial Services": 0.12
+          },
+          "negative:small": {
+            "Shopping & Retail": 0.28,
+            "Transportation": 0.22,
+            "Healthcare & Medical": 0.18,
+            "Food & Dining": 0.16,
+            "Charity & Donations": 0.16
+          },
+          "negative:medium": {
+            "Utilities & Services": 0.28,
+            "Government & Legal": 0.22,
+            "Financial Services": 0.18,
+            "Shopping & Retail": 0.16,
+            "Charity & Donations": 0.16
+          },
+          "negative:large": {
+            "Government & Legal": 0.34,
+            "Financial Services": 0.22,
+            "Utilities & Services": 0.18,
+            "Shopping & Retail": 0.14,
+            "Charity & Donations": 0.12
+          }
+        }
+      },
+      "validation_calibration": {
+        "before": {
+          "nll": 0.2753351574936657,
+          "ece": 0.1826544077233024,
+          "brier": 0.0839262257490226
+        },
+        "after": {
+          "nll": 0.1317567697584256,
+          "ece": 0.06931109535105193,
+          "brier": 0.040835256841202504
+        }
+      }
+    }
+  },
+  "selected_variant": "onnx_dynamic_quant",
+  "variant_benchmarks": {
+    "baseline": {
+      "status": "ok",
+      "variant": "baseline",
+      "backend_kind": "baseline",
+      "path": "model.joblib",
+      "artifact_size_mb": 0.1787,
+      "p50_latency_ms": 6.3271,
+      "p95_latency_ms": 6.9718,
+      "throughput_items_per_second": 39905.5043,
+      "label_match_rate": 1.0,
+      "top3_match_rate": 1.0
+    },
+    "onnx": {
+      "status": "ok",
+      "variant": "onnx",
+      "backend_kind": "onnx",
+      "path": "model.onnx",
+      "artifact_size_mb": 0.1173,
+      "p50_latency_ms": 2.272,
+      "p95_latency_ms": 2.5256,
+      "throughput_items_per_second": 111371.1573,
+      "label_match_rate": 1.0,
+      "top3_match_rate": 0.9766
+    },
+    "onnx_dynamic_quant": {
+      "status": "ok",
+      "variant": "onnx_dynamic_quant",
+      "backend_kind": "onnx_dynamic_quant",
+      "path": "model.dynamic_quant.onnx",
+      "artifact_size_mb": 0.1177,
+      "p50_latency_ms": 2.2717,
+      "p95_latency_ms": 2.3131,
+      "throughput_items_per_second": 112512.1723,
+      "label_match_rate": 1.0,
+      "top3_match_rate": 0.9766
+    }
+  },
+  "confidence_policy": {
+    "method": "temperature_keyword_amount_conflict_sparse_fallback",
+    "temperature": 0.7,
+    "keyword_fallback": {
+      "enabled": true,
+      "blend_weight": 0.55,
+      "max_primary_confidence": 0.58,
+      "high_confidence_override": 0.82,
+      "allowed_sources": [
+        "transaction_description",
+        "transaction_description_clean",
+        "merchant_text",
+        "imported_description",
+        "notes",
+        "derived"
+      ]
+    },
+    "amount_conflict_fallback": {
+      "enabled": true,
+      "blend_weight": 0.18,
+      "allowed_sources": [
+        "transaction_description",
+        "transaction_description_clean",
+        "merchant_text",
+        "imported_description",
+        "notes"
+      ],
+      "amount_priors": {
+        "positive:micro": {
+          "Financial Services": 0.34,
+          "Shopping & Retail": 0.24,
+          "Food & Dining": 0.2,
+          "Income": 0.14,
+          "Utilities & Services": 0.08
+        },
+        "positive:small": {
+          "Shopping & Retail": 0.26,
+          "Transportation": 0.22,
+          "Food & Dining": 0.2,
+          "Financial Services": 0.18,
+          "Income": 0.14
+        },
+        "positive:medium": {
+          "Shopping & Retail": 0.28,
+          "Utilities & Services": 0.22,
+          "Financial Services": 0.2,
+          "Income": 0.18,
+          "Government & Legal": 0.12
+        },
+        "positive:large": {
+          "Income": 0.6,
+          "Financial Services": 0.18,
+          "Government & Legal": 0.1,
+          "Utilities & Services": 0.08,
+          "Shopping & Retail": 0.04
+        },
+        "negative:micro": {
+          "Food & Dining": 0.3,
+          "Entertainment & Recreation": 0.24,
+          "Healthcare & Medical": 0.2,
+          "Transportation": 0.14,
+          "Financial Services": 0.12
+        },
+        "negative:small": {
+          "Shopping & Retail": 0.28,
+          "Transportation": 0.22,
+          "Healthcare & Medical": 0.18,
+          "Food & Dining": 0.16,
+          "Charity & Donations": 0.16
+        },
+        "negative:medium": {
+          "Utilities & Services": 0.28,
+          "Government & Legal": 0.22,
+          "Financial Services": 0.18,
+          "Shopping & Retail": 0.16,
+          "Charity & Donations": 0.16
+        },
+        "negative:large": {
+          "Government & Legal": 0.34,
+          "Financial Services": 0.22,
+          "Utilities & Services": 0.18,
+          "Shopping & Retail": 0.14,
+          "Charity & Donations": 0.12
+        }
+      }
+    },
+    "sparse_fallback": {
+      "enabled": true,
+      "allowed_sources": [
+        "derived"
+      ],
+      "blend_weight": 0.68,
+      "no_signal_blend_weight": 0.94,
+      "high_confidence_no_signal_blend_weight": 0.97,
+      "income_bias_blend_weight": 0.88,
+      "max_primary_confidence": 0.62,
+      "amount_prior_weight": 0.72,
+      "account_prior_weight": 0.25,
+      "default_prior_weight": 0.22,
+      "default_prior": {
+        "Shopping & Retail": 0.34,
+        "Food & Dining": 0.27,
+        "Utilities & Services": 0.17,
+        "Transportation": 0.12,
+        "Entertainment & Recreation": 0.1
+      },
+      "amount_priors": {
+        "positive:micro": {
+          "Financial Services": 0.34,
+          "Shopping & Retail": 0.24,
+          "Food & Dining": 0.2,
+          "Income": 0.14,
+          "Utilities & Services": 0.08
+        },
+        "positive:small": {
+          "Shopping & Retail": 0.26,
+          "Transportation": 0.22,
+          "Food & Dining": 0.2,
+          "Financial Services": 0.18,
+          "Income": 0.14
+        },
+        "positive:medium": {
+          "Shopping & Retail": 0.28,
+          "Utilities & Services": 0.22,
+          "Financial Services": 0.2,
+          "Income": 0.18,
+          "Government & Legal": 0.12
+        },
+        "positive:large": {
+          "Income": 0.6,
+          "Financial Services": 0.18,
+          "Government & Legal": 0.1,
+          "Utilities & Services": 0.08,
+          "Shopping & Retail": 0.04
+        },
+        "negative:micro": {
+          "Food & Dining": 0.3,
+          "Entertainment & Recreation": 0.24,
+          "Healthcare & Medical": 0.2,
+          "Transportation": 0.14,
+          "Financial Services": 0.12
+        },
+        "negative:small": {
+          "Shopping & Retail": 0.28,
+          "Transportation": 0.22,
+          "Healthcare & Medical": 0.18,
+          "Food & Dining": 0.16,
+          "Charity & Donations": 0.16
+        },
+        "negative:medium": {
+          "Utilities & Services": 0.28,
+          "Government & Legal": 0.22,
+          "Financial Services": 0.18,
+          "Shopping & Retail": 0.16,
+          "Charity & Donations": 0.16
+        },
+        "negative:large": {
+          "Government & Legal": 0.34,
+          "Financial Services": 0.22,
+          "Utilities & Services": 0.18,
+          "Shopping & Retail": 0.14,
+          "Charity & Donations": 0.12
+        }
+      }
+    },
+    "validation_calibration": {
+      "before": {
+        "nll": 0.2753351574936657,
+        "ece": 0.1826544077233024,
+        "brier": 0.0839262257490226
+      },
+      "after": {
+        "nll": 0.1317567697584256,
+        "ece": 0.06931109535105193,
+        "brier": 0.040835256841202504
+      }
+    }
   }
 }

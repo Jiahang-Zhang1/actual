@@ -4,7 +4,7 @@ from app.main import app
 
 
 class DummyBackendOutput:
-    classes = ["Food & Dining", "Shopping & Retail", "Entertainment & Recreation"]
+    classes = ["Food & Dining", "Shopping & Retail", "Transportation"]
 
     def __init__(self, size: int = 1):
         self.labels = ["Food & Dining"] * size
@@ -104,7 +104,31 @@ def test_predict_endpoint_contract_accepts_camel_case_fields(monkeypatch, tmp_pa
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["predicted_category_id"] == "Food & Dining"
+    assert payload["predicted_category_id"] == "Transportation"
+
+
+def test_predict_endpoint_contract_keeps_positive_lyft_manual_entry_transport(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        headers={"X-Actual-Traffic-Source": "contract-test"},
+        json={
+            "payee": "LYFT RIDE HOME",
+            "payment": "18.20",
+            "memo": "",
+            "currency": "USD",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["predicted_category_id"] == "Transportation"
+    assert payload["confidence"] <= 0.8
 
 
 def test_predict_endpoint_contract_accepts_payee_and_memo_aliases(monkeypatch, tmp_path):

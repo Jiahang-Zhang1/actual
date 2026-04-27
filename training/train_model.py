@@ -86,6 +86,23 @@ def clean_text(value) -> str:
     return str(value or "").strip()
 
 
+def same_clean_text(left, right) -> bool:
+    return clean_text(left).casefold() == clean_text(right).casefold()
+
+
+def looks_like_generated_fallback(value: str, row: pd.Series) -> bool:
+    normalized = " ".join(clean_text(value).casefold().split())
+    if normalized == "manual entry":
+        return True
+
+    account = clean_text(row.get("account_id")).casefold()
+    currency = clean_text(row.get("currency")).casefold()
+    has_account_hint = bool(account and f"account {account}" in normalized)
+    has_currency_hint = bool(currency and currency != "unknown" and currency in normalized)
+    has_amount_hint = "amount " in normalized
+    return has_amount_hint and (has_account_hint or has_currency_hint)
+
+
 def choose_description(row: pd.Series) -> str:
     for column in [
         "transaction_description",
@@ -101,13 +118,18 @@ def choose_description(row: pd.Series) -> str:
 
 
 def description_source(row: pd.Series) -> str:
-    for column in [
-        "transaction_description",
-        "transaction_description_clean",
-        "merchant_text",
-        "imported_description",
-        "notes",
-    ]:
+    transaction_description = clean_text(row.get("transaction_description"))
+    if transaction_description:
+        if looks_like_generated_fallback(transaction_description, row):
+            return "derived"
+        if same_clean_text(transaction_description, row.get("imported_description")):
+            return "imported_description"
+        if same_clean_text(transaction_description, row.get("notes")):
+            return "notes"
+        if same_clean_text(transaction_description, row.get("merchant_text")):
+            return "merchant_text"
+        return "transaction_description"
+    for column in ["transaction_description_clean", "merchant_text", "imported_description", "notes"]:
         if clean_text(row.get(column)):
             return column
     return "derived"
@@ -629,6 +651,7 @@ def main():
                 "blend_weight": 0.68,
                 "no_signal_blend_weight": 0.94,
                 "high_confidence_no_signal_blend_weight": 0.97,
+                "income_bias_blend_weight": 0.88,
                 "max_primary_confidence": 0.62,
                 "amount_prior_weight": 0.72,
                 "account_prior_weight": 0.25,

@@ -438,6 +438,13 @@ def _training_variant(row: dict[str, str], rng: random.Random) -> dict[str, str]
         notes = ""
     if rng.random() < 0.08:
         amount = ""
+    elif row["Expected Category"] != "Income" and rng.random() < 0.18:
+        # Actual manual entry can surface expenses as positive values while the
+        # user is typing debit/credit cells. Keep payee/notes signal realistic
+        # so training does not learn "positive small amount means Income".
+        amount = str(abs(float(amount)))
+    elif row["Expected Category"] == "Income" and rng.random() < 0.04:
+        amount = str(-abs(float(amount)))
     if rng.random() < 0.20:
         imported_description = ""
 

@@ -16,6 +16,7 @@ class ManualCase:
     payload: dict[str, Any]
     endpoint: str = "/predict"
     expected_top1: str | None = None
+    forbidden_top1: tuple[str, ...] = ()
     max_confidence: float | None = None
 
 
@@ -75,6 +76,18 @@ CASES = [
         max_confidence=0.8,
     ),
     ManualCase(
+        "lyft_positive_amount_actual_manual",
+        {
+            "transaction_description": "lyft 18.2 ride home",
+            "notes": "",
+            "amount": 18.20,
+            "currency": "USD",
+            "country": "US",
+        },
+        expected_top1="Transportation",
+        max_confidence=0.8,
+    ),
+    ManualCase(
         "uber_payment_alias_no_notes",
         {
             "payee": "UBER *TRIP HELP.UBER.COM",
@@ -126,6 +139,16 @@ CASES = [
         },
         expected_top1="Income",
         max_confidence=0.8,
+    ),
+    ManualCase(
+        "amount_only_positive_small_is_not_income",
+        {
+            "amount": 18.20,
+            "currency": "USD",
+            "country": "US",
+        },
+        forbidden_top1=("Income",),
+        max_confidence=0.45,
     ),
     ManualCase(
         "account_amount_only_transport",
@@ -242,6 +265,10 @@ def validate_prediction(case: ManualCase, item: dict[str, Any]) -> None:
         raise AssertionError(
             f"{case.name}: expected top1 {case.expected_top1}, "
             f"got {item.get('predicted_category_id')}"
+        )
+    if item.get("predicted_category_id") in case.forbidden_top1:
+        raise AssertionError(
+            f"{case.name}: forbidden top1 {item.get('predicted_category_id')}"
         )
     if case.max_confidence is not None and item.get("confidence", 0) > case.max_confidence:
         raise AssertionError(

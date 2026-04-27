@@ -430,6 +430,73 @@ class AccountInternal extends PureComponent<
     return this.resolveMlCategory(categoryIdOrName).categoryId;
   };
 
+  getTransactionMlTextSignal = (transaction: TransactionEntity) => {
+    const payeeName = this.props.payees.find(
+      payee => payee.id === transaction.payee,
+    )?.name;
+    return [payeeName, transaction.imported_payee, transaction.notes]
+      .filter(Boolean)
+      .join(' ');
+  };
+
+  getMlPredictionInputSignature = (transactions: TransactionEntity[]) => {
+    return transactions
+      .map(transaction =>
+        [
+          transaction.id,
+          transaction.payee ?? '',
+          transaction.imported_payee ?? '',
+          transaction.notes ?? '',
+          transaction.amount ?? '',
+          transaction.date ?? '',
+          transaction.account ?? '',
+        ].join('|'),
+      )
+      .join('\n');
+  };
+
+  shouldAutoApplyMlSuggestion = (
+    transaction: TransactionEntity,
+    topCategory: {
+      category_id: string;
+      category_name?: string;
+      score: number;
+    },
+    resolvedCategory: {
+      categoryId: string;
+      categoryName: string;
+      isMapped: boolean;
+    },
+  ) => {
+    if (!resolvedCategory.isMapped) {
+      return false;
+    }
+
+    const textSignal = this.normalizeCategoryName(
+      this.getTransactionMlTextSignal(transaction),
+    );
+    if (!textSignal) {
+      return false;
+    }
+
+    const categoryName = this.normalizeCategoryName(
+      resolvedCategory.categoryName,
+    );
+    if (categoryName === 'income') {
+      const hasIncomeTextSignal = [
+        'payroll',
+        'salary',
+        'direct deposit',
+        'paycheck',
+        'employer',
+        'income',
+      ].some(keyword => textSignal.includes(keyword));
+      return hasIncomeTextSignal && topCategory.score >= 0.78;
+    }
+
+    return topCategory.score >= 0.62;
+  };
+
   normalizeMlPredictionCategories = (
     prediction: MlPrediction | null,
   ): MlPrediction | null => {
@@ -693,7 +760,13 @@ class AccountInternal extends PureComponent<
         const resolvedTopCategory = topCategory
           ? this.resolveMlCategory(topCategory.category_id)
           : null;
-        return topCategory && resolvedTopCategory?.isMapped
+        return topCategory &&
+          resolvedTopCategory &&
+          this.shouldAutoApplyMlSuggestion(
+            transaction,
+            topCategory,
+            resolvedTopCategory,
+          )
           ? {
               id: transaction.id,
               category: resolvedTopCategory.categoryId,
@@ -917,8 +990,14 @@ class AccountInternal extends PureComponent<
     }
     const prevIds = prevState.transactions.map(t => t.id).join(',');
     const currIds = this.state.transactions.map(t => t.id).join(',');
+    const prevMlInputSignature = this.getMlPredictionInputSignature(
+      prevState.transactions,
+    );
+    const currMlInputSignature = this.getMlPredictionInputSignature(
+      this.state.transactions,
+    );
 
-    if (prevIds !== currIds) {
+    if (prevIds !== currIds || prevMlInputSignature !== currMlInputSignature) {
       void this.refreshMlPredictions(this.state.transactions);
     }
   }

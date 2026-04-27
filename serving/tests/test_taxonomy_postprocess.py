@@ -116,6 +116,47 @@ def test_transport_keyword_beats_income_bias_for_lyft_manual_entry():
     assert float(np.max(adjusted)) <= 0.8
 
 
+def test_transport_keyword_beats_high_confidence_income_bias():
+    classes = [
+        "Income",
+        "Transportation",
+        "Food & Dining",
+        "Shopping & Retail",
+    ]
+    raw = np.array([0.92, 0.04, 0.02, 0.02], dtype=float)
+    adjusted = apply_confidence_policy(
+        raw,
+        classes,
+        description="lyft 18.2 ride home",
+        description_source="transaction_description",
+        amount=18.2,
+        metadata={"confidence_policy": {}},
+    )
+    assert classes[int(np.argmax(adjusted))] == "Transportation"
+    assert float(np.max(adjusted)) < 0.75
+
+
+def test_positive_small_amount_only_does_not_default_to_income():
+    classes = [
+        "Income",
+        "Transportation",
+        "Food & Dining",
+        "Shopping & Retail",
+        "Financial Services",
+    ]
+    raw = np.array([0.74, 0.08, 0.07, 0.06, 0.05], dtype=float)
+    adjusted = apply_confidence_policy(
+        raw,
+        classes,
+        description="manual entry",
+        description_source="derived",
+        amount=18.2,
+        metadata={"confidence_policy": {}},
+    )
+    assert classes[int(np.argmax(adjusted))] != "Income"
+    assert float(np.max(adjusted)) < 0.45
+
+
 def test_amount_conflict_lowers_confidence_without_hiding_payee_signal():
     classes = [
         "Food & Dining",

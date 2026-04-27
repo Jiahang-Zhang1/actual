@@ -37,16 +37,35 @@ def test_online_features_builds_sparse_account_amount_description():
     )
 
 
+def test_online_features_accepts_payee_alias_for_manual_entry():
+    features = compute_features(
+        {
+            "payee": "LYFT RIDE HOME",
+            "payment": "18.20",
+            "currency": "USD",
+        }
+    )
+
+    serving_payload = format_for_serving(features)
+    assert serving_payload["transaction_description"] == "LYFT RIDE HOME"
+    assert serving_payload["merchant_text"] == "LYFT RIDE HOME"
+    assert serving_payload["amount"] == "18.20"
+
+
 def test_data_generator_can_emit_sparse_manual_payloads():
     payloads = {
         variant: sparse_payload(variant)
         for variant in [
             "notes_only",
             "amount_only",
+            "amount_only_positive_expense",
             "account_amount_only",
+            "account_positive_expense",
             "payee_no_notes",
+            "payee_positive_expense",
             "payee_amount_conflict",
             "payee_notes_conflict",
+            "income_text_positive",
             "camel_case_actual_payload",
             "invalid_amount_string",
             "empty_payload",
@@ -56,10 +75,14 @@ def test_data_generator_can_emit_sparse_manual_payloads():
     assert payloads["empty_payload"] == {}
     assert "notes" in payloads["notes_only"]
     assert "amount" in payloads["amount_only"]
+    assert payloads["amount_only_positive_expense"]["amount"] > 0
     assert "transaction_description" not in payloads["amount_only"]
     assert "account_id" in payloads["account_amount_only"]
+    assert payloads["account_positive_expense"]["amount"] > 0
     assert payloads["payee_no_notes"]["notes"] == ""
+    assert payloads["payee_positive_expense"]["amount"] > 0
     assert payloads["payee_notes_conflict"]["transaction_description"] == "LYFT RIDE"
+    assert "PAY" in payloads["income_text_positive"]["transaction_description"]
     assert "transactionDescription" in payloads["camel_case_actual_payload"]
     assert payloads["invalid_amount_string"]["amount"] == "not-a-number"
     assert "transaction_description" in build_payload(sparse_rate=0.0)
