@@ -111,7 +111,7 @@ spec:
       containers:
         - name: minio
           image: minio/minio:RELEASE.2025-09-07T16-13-09Z
-          args: ["server", "/data", "--console-address", ":9001"]
+          args: ['server', '/data', '--console-address', ':9001']
           ports:
             - containerPort: 9000
               name: api
@@ -176,7 +176,7 @@ spec:
                 secretKeyRef:
                   name: mlflow-platform-secrets
                   key: minio-root-password
-          command: ["/bin/sh", "-c"]
+          command: ['/bin/sh', '-c']
           args:
             - |
               until mc alias set minio http://mlflow-minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do
@@ -210,7 +210,7 @@ spec:
               name: http
           env:
             - name: MLFLOW_SERVER_ALLOWED_HOSTS
-              value: "*"
+              value: '*'
             - name: MLFLOW_S3_ENDPOINT_URL
               value: http://mlflow-minio:9000
             - name: POSTGRES_USER
@@ -238,7 +238,7 @@ spec:
                 secretKeyRef:
                   name: mlflow-platform-secrets
                   key: minio-root-password
-          command: ["/bin/sh", "-c"]
+          command: ['/bin/sh', '-c']
           args:
             - |
               pip install psycopg2-binary boto3 &&
@@ -259,7 +259,7 @@ spec:
               cpu: 200m
               memory: 1Gi
             limits:
-              cpu: "1"
+              cpu: '1'
               memory: 2Gi
 ---
 apiVersion: v1

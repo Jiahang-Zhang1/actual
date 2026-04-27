@@ -3,6 +3,7 @@ mlflow
 onnx
 onnxruntime
 pandas
+psutil
 pyarrow
 scikit-learn
 skl2onnx

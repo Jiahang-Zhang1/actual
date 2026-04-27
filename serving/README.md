@@ -106,20 +106,20 @@ The `serving/` folder is now organized around the runtime modules that are
 needed for the project demo and Chameleon deployment. Generated files are
 ignored so the folder does not fill up with local run output.
 
-| Path | Keep because | Main contents |
-| --- | --- | --- |
-| `app/` | Online inference service | FastAPI app, runtime state helpers, schemas, feature adapter, telemetry, model backends |
-| `models/` | Required model artifacts | Source sklearn model, ONNX model, dynamic-quantized ONNX model, artifact manifest |
-| `monitoring/` | Serving observability | Prometheus scrape/alert rules, Grafana dashboards and provisioning |
-| `tools/` | Serving operations helpers | Artifact preparation, benchmarks, rollout action runner, packaging utilities |
-| `tests/` | Serving correctness checks | API contract and feature adapter tests |
-| `artifacts/examples/` | Stable API examples | Minimal single/batch input and output samples used by smoke checks |
-| `results/summary/` | Checked-in evidence | Small benchmark and observability snapshots for reports/demos |
-| `docker/` | Container build config | Serving Dockerfile |
-| `docker-compose.yml` | Local service stack | Serving, Prometheus, Grafana, and tooling containers |
-| `run.py` | Local orchestration entrypoint | Build, prepare, start, smoke, benchmark, monitor, and package commands |
-| `bootstrap_chameleon.sh` | Serving-only compatibility wrapper | Delegates to the root Chameleon bootstrap with `--serving-only` |
-| `README.md` | Single human entrypoint | System flow, project requirement mapping, services, tests, deployment notes |
+| Path                     | Keep because                       | Main contents                                                                           |
+| ------------------------ | ---------------------------------- | --------------------------------------------------------------------------------------- |
+| `app/`                   | Online inference service           | FastAPI app, runtime state helpers, schemas, feature adapter, telemetry, model backends |
+| `models/`                | Required model artifacts           | Source sklearn model, ONNX model, dynamic-quantized ONNX model, artifact manifest       |
+| `monitoring/`            | Serving observability              | Prometheus scrape/alert rules, Grafana dashboards and provisioning                      |
+| `tools/`                 | Serving operations helpers         | Artifact preparation, benchmarks, rollout action runner, packaging utilities            |
+| `tests/`                 | Serving correctness checks         | API contract and feature adapter tests                                                  |
+| `artifacts/examples/`    | Stable API examples                | Minimal single/batch input and output samples used by smoke checks                      |
+| `results/summary/`       | Checked-in evidence                | Small benchmark and observability snapshots for reports/demos                           |
+| `docker/`                | Container build config             | Serving Dockerfile                                                                      |
+| `docker-compose.yml`     | Local service stack                | Serving, Prometheus, Grafana, and tooling containers                                    |
+| `run.py`                 | Local orchestration entrypoint     | Build, prepare, start, smoke, benchmark, monitor, and package commands                  |
+| `bootstrap_chameleon.sh` | Serving-only compatibility wrapper | Delegates to the root Chameleon bootstrap with `--serving-only`                         |
+| `README.md`              | Single human entrypoint            | System flow, project requirement mapping, services, tests, deployment notes             |
 
 Removed or ignored generated paths:
 
@@ -193,21 +193,21 @@ kubectl -n actual-ml-production set image \
 
 ## 3. Local Service URLs
 
-| Service | URL | Purpose |
-| --- | --- | --- |
-| Actual frontend | `http://127.0.0.1:3001` | Main user interface |
-| Actual server-dev / sync server | `http://127.0.0.1:5006` | Local Actual server features |
-| Serving API docs | `http://127.0.0.1:8000/docs` | API contract and manual requests |
-| Serving monitor summary | `http://127.0.0.1:8000/monitor/summary` | Current model, request, feedback, and data quality behavior |
-| Serving rollout decision | `http://127.0.0.1:8000/monitor/decision` | Promotion or rollback recommendation |
-| Prometheus | `http://127.0.0.1:9090` | Metrics query UI |
-| Prometheus recommended queries | `http://127.0.0.1:9090/consoles/actual_ml_queries.html` | Clickable query list for demos |
-| Grafana overview | `http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview` | Main monitoring dashboard |
-| Grafana model behavior | `http://127.0.0.1:3000/d/actual-ml-model-behavior/model-behavior` | Model output and feedback dashboard |
-| Grafana data/rollout | `http://127.0.0.1:3000/d/actual-ml-data-rollout/data-quality-and-rollout` | Data quality and rollout safety dashboard |
-| Grafana home | `http://127.0.0.1:3000` | Dashboard index, login `admin / admin` |
-| MLflow | `http://127.0.0.1:5000` | Training run tracking and model registry |
-| MinIO console | `http://127.0.0.1:9001` | MLflow artifact storage UI |
+| Service                         | URL                                                                           | Purpose                                                     |
+| ------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Actual frontend                 | `http://127.0.0.1:3001`                                                       | Main user interface                                         |
+| Actual server-dev / sync server | `http://127.0.0.1:5006`                                                       | Local Actual server features                                |
+| Serving API docs                | `http://127.0.0.1:8000/docs`                                                  | API contract and manual requests                            |
+| Serving monitor summary         | `http://127.0.0.1:8000/monitor/summary`                                       | Current model, request, feedback, and data quality behavior |
+| Serving rollout decision        | `http://127.0.0.1:8000/monitor/decision`                                      | Promotion or rollback recommendation                        |
+| Prometheus                      | `http://127.0.0.1:9090`                                                       | Metrics query UI                                            |
+| Prometheus recommended queries  | `http://127.0.0.1:9090/consoles/actual_ml_queries.html`                       | Clickable query list for demos                              |
+| Grafana overview                | `http://127.0.0.1:3000/d/actual-ml-system-overview/actual-ml-system-overview` | Main monitoring dashboard                                   |
+| Grafana model behavior          | `http://127.0.0.1:3000/d/actual-ml-model-behavior/model-behavior`             | Model output and feedback dashboard                         |
+| Grafana data/rollout            | `http://127.0.0.1:3000/d/actual-ml-data-rollout/data-quality-and-rollout`     | Data quality and rollout safety dashboard                   |
+| Grafana home                    | `http://127.0.0.1:3000`                                                       | Dashboard index, login `admin / admin`                      |
+| MLflow                          | `http://127.0.0.1:5000`                                                       | Training run tracking and model registry                    |
+| MinIO console                   | `http://127.0.0.1:9001`                                                       | MLflow artifact storage UI                                  |
 
 Port difference:
 
@@ -404,21 +404,21 @@ artifacts/archive/last_decision.json
 
 ## 5. Service Inventory
 
-| Area | Service or job | Local port or schedule | Responsibility | Main files |
-| --- | --- | --- | --- | --- |
-| Product UI | Actual frontend | `3001` | Import transactions and show predictions in the account table | `packages/desktop-client/src/components/accounts/Account.tsx`, `packages/desktop-client/src/components/transactions/TransactionsTable.tsx`, `packages/desktop-client/src/components/Titlebar.tsx` |
-| Product backend | Actual server-dev | `5006` | Local Actual server features used by the frontend flow | `packages/sync-server/src/app.ts`, root `package.json` scripts |
-| Actual ML bridge | Core prediction/feedback handlers | internal | Calls serving and persists prediction/feedback records | `packages/loot-core/src/server/ml/app.ts`, `packages/loot-core/src/server/ml/service.ts`, `packages/loot-core/src/server/ml/store.ts`, `packages/loot-core/src/server/transactions/app.ts` |
-| Inference | Serving API | `8000` | Serves prediction, feedback, monitoring, and rollout endpoints | `serving/app/main.py`, `serving/app/runtime.py`, `serving/app/schemas.py`, `serving/app/config.py` |
-| Model runtime | Runtime backends | loaded by serving | Loads sklearn, ONNX, or dynamic-quantized ONNX artifacts | `serving/app/backends/`, `serving/models/source/`, `serving/models/optimized/`, `serving/models/manifest.json` |
-| Metrics | Prometheus | `9090` | Scrapes metrics and evaluates alert/recording rules | `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, `serving/docker-compose.yml` |
-| Dashboards | Grafana | `3000` | Visualizes service, prediction, feedback, data quality, and rollout state | `serving/monitoring/grafana/provisioning/`, `serving/monitoring/grafana/dashboards/`, `serving/docker-compose.yml` |
-| Model registry | MLflow + Postgres + MinIO | `5000`, `9000`, `9001` | Tracks training runs, stores artifacts, and records promoted model aliases | `serving/docker-compose.yml`, `k8s/ml-system/base/mlflow-platform.yaml`, `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py` |
-| Data quality | Data quality monitor | local command / K8s every 30 minutes | Checks ingestion, training set, and online drift quality | `data/data_quality_check.py`, `data/ingest.py`, `data/batch_pipeline.py`, `k8s/ml-system/base/data-quality-cronjob.yaml` |
-| Training automation | Retrain/evaluate/promote pipeline | local command / CI / K8s every 6-12 hours | Builds datasets, trains challengers, evaluates gates, promotes winners | `scripts/run_mlops_pipeline.py`, `training/build_training_set.py`, `training/train_model.py`, `scripts/promote_model.py`, `.github/workflows/mlops-automation.yml`, `k8s/ml-system/base/training-pipeline-cronjob.yaml` |
-| Rollout control | Serving rollout decision job | local command / K8s every 15 minutes | Runs promotion or rollback actions from monitoring decisions | `serving/tools/execute_rollout_action.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/rollout-decision-cronjob.yaml` |
-| Deployment | Kubernetes manifests | staging/canary/production | Runs integrated services and automation on Chameleon | `k8s/ml-system/base/`, `k8s/ml-system/overlays/staging/`, `k8s/ml-system/overlays/canary/`, `k8s/ml-system/overlays/production/` |
-| Test orchestration | Final project test runner | local script | Generates data, starts services, sends traffic, posts quality metrics, opens UIs | `scripts/final_project_test.sh`, `scripts/generate_actual_bank_import.py`, `scripts/simulate_promotion_rollback.py` |
+| Area                | Service or job                    | Local port or schedule                    | Responsibility                                                                   | Main files                                                                                                                                                                                                              |
+| ------------------- | --------------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Product UI          | Actual frontend                   | `3001`                                    | Import transactions and show predictions in the account table                    | `packages/desktop-client/src/components/accounts/Account.tsx`, `packages/desktop-client/src/components/transactions/TransactionsTable.tsx`, `packages/desktop-client/src/components/Titlebar.tsx`                       |
+| Product backend     | Actual server-dev                 | `5006`                                    | Local Actual server features used by the frontend flow                           | `packages/sync-server/src/app.ts`, root `package.json` scripts                                                                                                                                                          |
+| Actual ML bridge    | Core prediction/feedback handlers | internal                                  | Calls serving and persists prediction/feedback records                           | `packages/loot-core/src/server/ml/app.ts`, `packages/loot-core/src/server/ml/service.ts`, `packages/loot-core/src/server/ml/store.ts`, `packages/loot-core/src/server/transactions/app.ts`                              |
+| Inference           | Serving API                       | `8000`                                    | Serves prediction, feedback, monitoring, and rollout endpoints                   | `serving/app/main.py`, `serving/app/runtime.py`, `serving/app/schemas.py`, `serving/app/config.py`                                                                                                                      |
+| Model runtime       | Runtime backends                  | loaded by serving                         | Loads sklearn, ONNX, or dynamic-quantized ONNX artifacts                         | `serving/app/backends/`, `serving/models/source/`, `serving/models/optimized/`, `serving/models/manifest.json`                                                                                                          |
+| Metrics             | Prometheus                        | `9090`                                    | Scrapes metrics and evaluates alert/recording rules                              | `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, `serving/docker-compose.yml`                                                                                                           |
+| Dashboards          | Grafana                           | `3000`                                    | Visualizes service, prediction, feedback, data quality, and rollout state        | `serving/monitoring/grafana/provisioning/`, `serving/monitoring/grafana/dashboards/`, `serving/docker-compose.yml`                                                                                                      |
+| Model registry      | MLflow + Postgres + MinIO         | `5000`, `9000`, `9001`                    | Tracks training runs, stores artifacts, and records promoted model aliases       | `serving/docker-compose.yml`, `k8s/ml-system/base/mlflow-platform.yaml`, `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`                                                             |
+| Data quality        | Data quality monitor              | local command / K8s every 30 minutes      | Checks ingestion, training set, and online drift quality                         | `data/data_quality_check.py`, `data/ingest.py`, `data/batch_pipeline.py`, `k8s/ml-system/base/data-quality-cronjob.yaml`                                                                                                |
+| Training automation | Retrain/evaluate/promote pipeline | local command / CI / K8s every 6-12 hours | Builds datasets, trains challengers, evaluates gates, promotes winners           | `scripts/run_mlops_pipeline.py`, `training/build_training_set.py`, `training/train_model.py`, `scripts/promote_model.py`, `.github/workflows/mlops-automation.yml`, `k8s/ml-system/base/training-pipeline-cronjob.yaml` |
+| Rollout control     | Serving rollout decision job      | local command / K8s every 15 minutes      | Runs promotion or rollback actions from monitoring decisions                     | `serving/tools/execute_rollout_action.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/rollout-decision-cronjob.yaml`                                                                  |
+| Deployment          | Kubernetes manifests              | staging/canary/production                 | Runs integrated services and automation on Chameleon                             | `k8s/ml-system/base/`, `k8s/ml-system/overlays/staging/`, `k8s/ml-system/overlays/canary/`, `k8s/ml-system/overlays/production/`                                                                                        |
+| Test orchestration  | Final project test runner         | local script                              | Generates data, starts services, sends traffic, posts quality metrics, opens UIs | `scripts/final_project_test.sh`, `scripts/generate_actual_bank_import.py`, `scripts/simulate_promotion_rollback.py`                                                                                                     |
 
 ## 6. Module Details
 
@@ -497,19 +497,19 @@ serving/app/backends/
 
 Main endpoints:
 
-| Endpoint | Purpose |
-| --- | --- |
-| `POST /predict` | Single transaction category prediction |
-| `POST /predict_batch` | Batch category prediction for account tables/imports |
-| `POST /feedback` | User-selected category feedback |
-| `GET /metrics` | Prometheus scrape endpoint |
-| `GET /monitor/summary` | Aggregated request, prediction, feedback, and data quality summary |
-| `GET /monitor/decision` | Promotion/rollback recommendation based on thresholds |
-| `POST /monitor/data-quality` | Receives data quality check results |
-| `POST /admin/reload-model` | Clears backend cache and reloads deployed model after promotion/rollback |
-| `GET /healthz` | Liveness health check |
-| `GET /readyz` | Readiness check including model warmup readiness |
-| `GET /versionz` | Model/runtime version info |
+| Endpoint                     | Purpose                                                                  |
+| ---------------------------- | ------------------------------------------------------------------------ |
+| `POST /predict`              | Single transaction category prediction                                   |
+| `POST /predict_batch`        | Batch category prediction for account tables/imports                     |
+| `POST /feedback`             | User-selected category feedback                                          |
+| `GET /metrics`               | Prometheus scrape endpoint                                               |
+| `GET /monitor/summary`       | Aggregated request, prediction, feedback, and data quality summary       |
+| `GET /monitor/decision`      | Promotion/rollback recommendation based on thresholds                    |
+| `POST /monitor/data-quality` | Receives data quality check results                                      |
+| `POST /admin/reload-model`   | Clears backend cache and reloads deployed model after promotion/rollback |
+| `GET /healthz`               | Liveness health check                                                    |
+| `GET /readyz`                | Readiness check including model warmup readiness                         |
+| `GET /versionz`              | Model/runtime version info                                               |
 
 Key environment variables:
 
@@ -563,10 +563,10 @@ scripts/export_model_variants.py
 
 Runtime variants:
 
-| Variant | `BACKEND_KIND` | Model path |
-| --- | --- | --- |
-| sklearn baseline | `baseline` | `serving/models/source/v2_tfidf_linearsvc_model.joblib` |
-| ONNX | `onnx` | `serving/models/optimized/v2_tfidf_linearsvc_model.onnx` |
+| Variant                   | `BACKEND_KIND`       | Model path                                                             |
+| ------------------------- | -------------------- | ---------------------------------------------------------------------- |
+| sklearn baseline          | `baseline`           | `serving/models/source/v2_tfidf_linearsvc_model.joblib`                |
+| ONNX                      | `onnx`               | `serving/models/optimized/v2_tfidf_linearsvc_model.onnx`               |
 | ONNX dynamic quantization | `onnx_dynamic_quant` | `serving/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx` |
 
 Automated retraining produces the same three variants for every new challenger:
@@ -704,11 +704,11 @@ serving/monitoring/grafana/dashboards/data_rollout.json
 
 Dashboard guide:
 
-| Dashboard | Use it for | What to say in demo |
-| --- | --- | --- |
-| Actual ML System Overview | One-screen health check | Serving is up, requests are flowing, latency/error SLOs are safe, feedback is arriving, and data gates are visible. |
-| Model Behavior | Model output and user response | The model returns diverse Top-3 categories, confidence is tracked, and Top-1/Top-3 acceptance shows whether suggestions are useful. |
-| Data Quality & Rollout | Data gates and promote/rollback safety | Ingestion/training/online drift checks feed Prometheus, and rollout alerts justify promote/rollback decisions. |
+| Dashboard                 | Use it for                             | What to say in demo                                                                                                                 |
+| ------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Actual ML System Overview | One-screen health check                | Serving is up, requests are flowing, latency/error SLOs are safe, feedback is arriving, and data gates are visible.                 |
+| Model Behavior            | Model output and user response         | The model returns diverse Top-3 categories, confidence is tracked, and Top-1/Top-3 acceptance shows whether suggestions are useful. |
+| Data Quality & Rollout    | Data gates and promote/rollback safety | Ingestion/training/online drift checks feed Prometheus, and rollout alerts justify promote/rollback decisions.                      |
 
 ### 6.6 Data Quality
 
@@ -791,11 +791,11 @@ serving/tools/execute_rollout_action.py
 
 Model families currently trained by the automated pipeline:
 
-| Family | Why it is included |
-| --- | --- |
-| `logreg` | Main TF-IDF + Logistic Regression baseline from the slides. |
-| `linear_svm` | Strong linear text classifier alternative from the slides. |
-| `sgd_log` | Fast incremental-style linear classifier suitable for frequent retraining. |
+| Family       | Why it is included                                                         |
+| ------------ | -------------------------------------------------------------------------- |
+| `logreg`     | Main TF-IDF + Logistic Regression baseline from the slides.                |
+| `linear_svm` | Strong linear text classifier alternative from the slides.                 |
+| `sgd_log`    | Fast incremental-style linear classifier suitable for frequent retraining. |
 
 The selected model family is written to `metadata.json` as `model_family`.
 MLflow also logs every family under metrics such as:
@@ -878,11 +878,11 @@ GET /monitor/decision
 
 Possible decision actions:
 
-| Action | Meaning |
-| --- | --- |
-| `hold` | No action required |
+| Action              | Meaning                                                                                            |
+| ------------------- | -------------------------------------------------------------------------------------------------- |
+| `hold`              | No action required                                                                                 |
 | `promote_candidate` | Candidate has enough traffic, feedback, latency, error-rate, and acceptance evidence for promotion |
-| `rollback_active` | Production behavior crossed rollback thresholds |
+| `rollback_active`   | Production behavior crossed rollback thresholds                                                    |
 
 ## 7. Project Requirement Traceability
 
@@ -1152,12 +1152,12 @@ not role-owned duplicated infrastructure.
 
 Base services:
 
-| Service | File | Port |
-| --- | --- | --- |
-| `actual-sync` | `k8s/ml-system/base/actual-sync.yaml` | `5006` |
-| `smartcat-serving` | `k8s/ml-system/base/serving.yaml` | `8000` |
-| `prometheus` | `k8s/ml-system/base/monitoring.yaml` | `9090` |
-| `grafana` | `k8s/ml-system/base/monitoring.yaml` | `3000` |
+| Service            | File                                  | Port   |
+| ------------------ | ------------------------------------- | ------ |
+| `actual-sync`      | `k8s/ml-system/base/actual-sync.yaml` | `5006` |
+| `smartcat-serving` | `k8s/ml-system/base/serving.yaml`     | `8000` |
+| `prometheus`       | `k8s/ml-system/base/monitoring.yaml`  | `9090` |
+| `grafana`          | `k8s/ml-system/base/monitoring.yaml`  | `3000` |
 
 Environment overlays:
 
@@ -1203,15 +1203,15 @@ Metric: CPU utilization 70%
 
 Local vs Chameleon differences:
 
-| Topic | Local / Docker Compose | Chameleon / Kubernetes |
-| --- | --- | --- |
-| Service discovery | `localhost` ports | Kubernetes service DNS and namespaces |
-| Storage | local folders and Docker volumes | PVCs and Chameleon storage classes |
-| Images | built locally | images should be pushed to a registry or loaded into cluster nodes |
-| Environments | one local stack | staging, canary, and production overlays |
-| Automation | scripts and optional local commands | CronJobs and CI workflow |
-| Access | browser on `127.0.0.1` | NodePort, LoadBalancer, Ingress, or port-forward |
-| Monitoring data | local Prometheus volume | persistent monitoring PVC |
+| Topic             | Local / Docker Compose              | Chameleon / Kubernetes                                             |
+| ----------------- | ----------------------------------- | ------------------------------------------------------------------ |
+| Service discovery | `localhost` ports                   | Kubernetes service DNS and namespaces                              |
+| Storage           | local folders and Docker volumes    | PVCs and Chameleon storage classes                                 |
+| Images            | built locally                       | images should be pushed to a registry or loaded into cluster nodes |
+| Environments      | one local stack                     | staging, canary, and production overlays                           |
+| Automation        | scripts and optional local commands | CronJobs and CI workflow                                           |
+| Access            | browser on `127.0.0.1`              | NodePort, LoadBalancer, Ingress, or port-forward                   |
+| Monitoring data   | local Prometheus volume             | persistent monitoring PVC                                          |
 
 Before a real Chameleon run, confirm image names, storage classes, secrets, and
 external access match the team's Chameleon setup.
@@ -1231,12 +1231,12 @@ serving/docker-compose.yml
 
 Services:
 
-| Compose service | Container | Purpose |
-| --- | --- | --- |
-| `serve` | `actualbudget-serving-app` | FastAPI serving service |
-| `tooling` | profile `tools` | Utility container for Python commands |
-| `prometheus` | `actualbudget-serving-prometheus` | Metrics and alerts |
-| `grafana` | `actualbudget-serving-grafana` | Dashboards |
+| Compose service | Container                         | Purpose                               |
+| --------------- | --------------------------------- | ------------------------------------- |
+| `serve`         | `actualbudget-serving-app`        | FastAPI serving service               |
+| `tooling`       | profile `tools`                   | Utility container for Python commands |
+| `prometheus`    | `actualbudget-serving-prometheus` | Metrics and alerts                    |
+| `grafana`       | `actualbudget-serving-grafana`    | Dashboards                            |
 
 Start through helper:
 
@@ -1444,16 +1444,16 @@ uses a lighter implementation for some platform pieces. The table below maps
 the course lab pattern to this repository so the team can explain which parts
 are already equivalent and which parts should be upgraded if time allows.
 
-| Course lab pattern | What the lab emphasizes | Current project mapping | Status |
-| --- | --- | --- | --- |
-| MLOps Pipeline on Chameleon | `tf/`, `ansible/`, `k8s/platform`, `k8s/staging`, `k8s/canary`, `k8s/production`, and `workflows/` for lifecycle automation | We have `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh`, `k8s/ml-system/base`, and `k8s/ml-system/overlays/staging|canary|production` | Functionally close, but not full course-style IaC/GitOps |
-| MLOps lifecycle workflows | Training builds a candidate, deploys to staging, tests staging, promotes to canary, then promotes or rolls back production | `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `serving/tools/execute_rollout_action.py`, K8s CronJobs | Implemented as Python scripts, GitHub Actions, and CronJobs instead of Argo Workflows |
-| MLflow tracking and registry | MLflow runs as shared platform service with Postgres metadata and MinIO/S3 artifacts | `serving/docker-compose.yml` and `k8s/ml-system/base/mlflow-platform.yaml` run MLflow/Postgres/MinIO; `training/train_model.py` registers challengers; promotion/rollback scripts update aliases | Implemented; final Chameleon run evidence still needed |
-| Serving system lab | FastAPI inference service exposes `/predict`, batch-style serving, health checks, model artifact loading, and performance testing | `serving/app/main.py`, `serving/app/backends/`, `serving/tools/benchmark_http.py`, `serving/tools/benchmark_arrivals.py` | Implemented |
-| Online evaluation lab | FastAPI exposes `/metrics`; Prometheus scrapes it; Grafana shows operational and prediction behavior | `serving/app/main.py`, `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, Grafana dashboards | Implemented locally; K8s should mount the same dashboard/rule configs |
-| Feedback-loop lab | Save production predictions, collect explicit user feedback, sample low-confidence or flagged items, and feed labels into retraining | Actual Top-3 clicks record feedback in `ml_feedback` and serving `/feedback`; `data/feedback_collector.py` and `training/build_training_set.py` support the retraining path | Implemented for user feedback; random/low-confidence sampling is documented as a possible extension |
-| Data quality and drift | Check data at ingestion, training-set build time, and online production drift | `data/data_quality_check.py` plus `k8s/ml-system/base/data-quality-cronjob.yaml` | Implemented, but final Chameleon PVC paths must be verified with real pipeline output |
-| Platform services | Shared platform services should avoid duplicated infrastructure across roles | Local Compose has one serving/Prometheus/Grafana stack; K8s overlays currently instantiate monitoring per environment | Acceptable for local demo; final K8s should ideally split shared `platform` namespace from app environments |
+| Course lab pattern           | What the lab emphasizes                                                                                                              | Current project mapping                                                                                                                                                                          | Status                                                                                                      |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- | ----------- | -------------------------------------------------------- |
+| MLOps Pipeline on Chameleon  | `tf/`, `ansible/`, `k8s/platform`, `k8s/staging`, `k8s/canary`, `k8s/production`, and `workflows/` for lifecycle automation          | We have `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh`, `k8s/ml-system/base`, and `k8s/ml-system/overlays/staging                                                                    | canary                                                                                                      | production` | Functionally close, but not full course-style IaC/GitOps |
+| MLOps lifecycle workflows    | Training builds a candidate, deploys to staging, tests staging, promotes to canary, then promotes or rolls back production           | `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `serving/tools/execute_rollout_action.py`, K8s CronJobs                                                | Implemented as Python scripts, GitHub Actions, and CronJobs instead of Argo Workflows                       |
+| MLflow tracking and registry | MLflow runs as shared platform service with Postgres metadata and MinIO/S3 artifacts                                                 | `serving/docker-compose.yml` and `k8s/ml-system/base/mlflow-platform.yaml` run MLflow/Postgres/MinIO; `training/train_model.py` registers challengers; promotion/rollback scripts update aliases | Implemented; final Chameleon run evidence still needed                                                      |
+| Serving system lab           | FastAPI inference service exposes `/predict`, batch-style serving, health checks, model artifact loading, and performance testing    | `serving/app/main.py`, `serving/app/backends/`, `serving/tools/benchmark_http.py`, `serving/tools/benchmark_arrivals.py`                                                                         | Implemented                                                                                                 |
+| Online evaluation lab        | FastAPI exposes `/metrics`; Prometheus scrapes it; Grafana shows operational and prediction behavior                                 | `serving/app/main.py`, `serving/monitoring/prometheus.yml`, `serving/monitoring/prometheus-alerts.yml`, Grafana dashboards                                                                       | Implemented locally; K8s should mount the same dashboard/rule configs                                       |
+| Feedback-loop lab            | Save production predictions, collect explicit user feedback, sample low-confidence or flagged items, and feed labels into retraining | Actual Top-3 clicks record feedback in `ml_feedback` and serving `/feedback`; `data/feedback_collector.py` and `training/build_training_set.py` support the retraining path                      | Implemented for user feedback; random/low-confidence sampling is documented as a possible extension         |
+| Data quality and drift       | Check data at ingestion, training-set build time, and online production drift                                                        | `data/data_quality_check.py` plus `k8s/ml-system/base/data-quality-cronjob.yaml`                                                                                                                 | Implemented, but final Chameleon PVC paths must be verified with real pipeline output                       |
+| Platform services            | Shared platform services should avoid duplicated infrastructure across roles                                                         | Local Compose has one serving/Prometheus/Grafana stack; K8s overlays currently instantiate monitoring per environment                                                                            | Acceptable for local demo; final K8s should ideally split shared `platform` namespace from app environments |
 
 Practical refactor decision:
 
@@ -1464,23 +1464,23 @@ Practical refactor decision:
 
 ### Already Implemented
 
-| Requirement | Current implementation | Evidence |
-| --- | --- | --- |
-| Feature inside Actual user flow | Account tables show `AI Suggestion` and `All Top-3`; users can select any candidate and update the category | `packages/desktop-client/src/components/accounts/Account.tsx`, `packages/desktop-client/src/components/transactions/TransactionsTable.tsx` |
-| Frontend to serving inference | Actual core calls `/predict_batch` first and supports `/predict` fallback | `packages/loot-core/src/server/ml/service.ts`, `packages/loot-core/src/server/ml/app.ts` |
-| Feedback capture | User category choices are stored in `ml_feedback` and mirrored to serving `/feedback` | `packages/loot-core/src/server/ml/store.ts`, `serving/app/main.py` |
-| Serving monitoring | Serving exposes model output metrics, latency/error metrics, feedback metrics, data-quality metrics, and `/monitor/summary` | `serving/app/main.py`, `serving/app/config.py` |
-| Promotion/rollback decision endpoint | `/monitor/decision` returns `hold`, `promote_candidate`, or `rollback_active` using traffic, latency, error-rate, and feedback thresholds | `serving/app/main.py` |
-| Rollout trigger runner | Serving-owned trigger reads `/monitor/decision`, runs promotion or rollback, and can reload the deployed model | `serving/tools/execute_rollout_action.py` |
-| Training/evaluation gate | Challenger must pass Top-3 accuracy and macro-F1 gates and must not underperform the current champion | `training/train_model.py`, `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py` |
-| MLflow registry loop | Training registers challengers when `MLFLOW_TRACKING_URI` is configured; promotion/rollback updates the active MLflow alias | `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/mlflow-platform.yaml` |
-| Week-long traffic automation | A compressed or real-time one-week simulation sends traffic, records feedback, runs retraining, and triggers rollout decisions | `scripts/run_week_simulation.py` |
-| Data quality checks | Ingestion, training-set, and online-drift checks exist and can post status into serving | `data/data_quality_check.py`, `k8s/ml-system/base/data-quality-cronjob.yaml` |
-| Local full-stack test | One script generates import data, starts serving/monitoring, sends traffic, posts data quality, simulates rollout, and starts Actual | `scripts/final_project_test.sh` |
-| Fresh Chameleon bootstrap | One root script installs Docker, Node/Yarn, Python deps, starts services, and prints URLs | `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh` |
-| K8s environment split | Staging, canary, and production overlays exist | `k8s/ml-system/overlays/staging/`, `k8s/ml-system/overlays/canary/`, `k8s/ml-system/overlays/production/` |
-| DevOps health/scaling | Serving has readiness/liveness probes and HPA; Prometheus/Grafana manifests exist | `k8s/ml-system/base/serving.yaml`, `k8s/ml-system/base/monitoring.yaml` |
-| Safeguarding mechanisms | Top-3 transparency, user override, feedback accountability, privacy-aware serving logs, rollback robustness | `docs/ml-system/SAFEGUARDING.md` |
+| Requirement                          | Current implementation                                                                                                                    | Evidence                                                                                                                                   |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Feature inside Actual user flow      | Account tables show `AI Suggestion` and `All Top-3`; users can select any candidate and update the category                               | `packages/desktop-client/src/components/accounts/Account.tsx`, `packages/desktop-client/src/components/transactions/TransactionsTable.tsx` |
+| Frontend to serving inference        | Actual core calls `/predict_batch` first and supports `/predict` fallback                                                                 | `packages/loot-core/src/server/ml/service.ts`, `packages/loot-core/src/server/ml/app.ts`                                                   |
+| Feedback capture                     | User category choices are stored in `ml_feedback` and mirrored to serving `/feedback`                                                     | `packages/loot-core/src/server/ml/store.ts`, `serving/app/main.py`                                                                         |
+| Serving monitoring                   | Serving exposes model output metrics, latency/error metrics, feedback metrics, data-quality metrics, and `/monitor/summary`               | `serving/app/main.py`, `serving/app/config.py`                                                                                             |
+| Promotion/rollback decision endpoint | `/monitor/decision` returns `hold`, `promote_candidate`, or `rollback_active` using traffic, latency, error-rate, and feedback thresholds | `serving/app/main.py`                                                                                                                      |
+| Rollout trigger runner               | Serving-owned trigger reads `/monitor/decision`, runs promotion or rollback, and can reload the deployed model                            | `serving/tools/execute_rollout_action.py`                                                                                                  |
+| Training/evaluation gate             | Challenger must pass Top-3 accuracy and macro-F1 gates and must not underperform the current champion                                     | `training/train_model.py`, `scripts/run_mlops_pipeline.py`, `scripts/promote_model.py`                                                     |
+| MLflow registry loop                 | Training registers challengers when `MLFLOW_TRACKING_URI` is configured; promotion/rollback updates the active MLflow alias               | `training/train_model.py`, `scripts/promote_model.py`, `scripts/rollback_model.py`, `k8s/ml-system/base/mlflow-platform.yaml`              |
+| Week-long traffic automation         | A compressed or real-time one-week simulation sends traffic, records feedback, runs retraining, and triggers rollout decisions            | `scripts/run_week_simulation.py`                                                                                                           |
+| Data quality checks                  | Ingestion, training-set, and online-drift checks exist and can post status into serving                                                   | `data/data_quality_check.py`, `k8s/ml-system/base/data-quality-cronjob.yaml`                                                               |
+| Local full-stack test                | One script generates import data, starts serving/monitoring, sends traffic, posts data quality, simulates rollout, and starts Actual      | `scripts/final_project_test.sh`                                                                                                            |
+| Fresh Chameleon bootstrap            | One root script installs Docker, Node/Yarn, Python deps, starts services, and prints URLs                                                 | `bootstrap_chameleon.sh`, `scripts/chameleon_bootstrap.sh`                                                                                 |
+| K8s environment split                | Staging, canary, and production overlays exist                                                                                            | `k8s/ml-system/overlays/staging/`, `k8s/ml-system/overlays/canary/`, `k8s/ml-system/overlays/production/`                                  |
+| DevOps health/scaling                | Serving has readiness/liveness probes and HPA; Prometheus/Grafana manifests exist                                                         | `k8s/ml-system/base/serving.yaml`, `k8s/ml-system/base/monitoring.yaml`                                                                    |
+| Safeguarding mechanisms              | Top-3 transparency, user override, feedback accountability, privacy-aware serving logs, rollback robustness                               | `docs/ml-system/SAFEGUARDING.md`                                                                                                           |
 
 ### Frequent Gated Promotion
 
@@ -1536,18 +1536,18 @@ production Top-3 acceptance below threshold
 
 ### Remaining Gaps Before Final Freeze
 
-| Gap | Why it matters | Recommended next step |
-| --- | --- | --- |
-| No full Terraform/Ansible infrastructure path yet | The course MLOps lab provisions Chameleon resources with Terraform and configures Kubernetes/Argo with Ansible; our bootstrap script is easier but less lab-like | Either add `tf/` and `ansible/` from the team's Chameleon setup, or explicitly document that the team is using a manual cluster plus bootstrap script |
-| No Argo Workflows/ArgoCD lifecycle yet | The course lifecycle path uses Argo Workflows for train/build/deploy/test/promote and ArgoCD for environment sync | Convert the existing CronJobs and GitHub workflow into Argo `WorkflowTemplate`s if final grading expects lab-style GitOps evidence |
-| Shared platform namespace is not separated yet | The course lab keeps accessory services in `k8s/platform` and app versions in staging/canary/production; our base repeats monitoring with each overlay | Add `k8s/ml-system/platform` for MLflow, MinIO/Postgres, Prometheus, Grafana, and gateway/traffic routing |
-| K8s Actual image may not include this branch's frontend/core changes | The current K8s manifest references `actualbudget/actual-sync:latest`; final Kubernetes demo must run the modified Actual UI with prediction columns | Build and push a custom Actual image from this branch, then update `k8s/ml-system/base/actual-sync.yaml` or split web/sync services with the custom image |
-| K8s Grafana/Prometheus config is lighter than local Compose | Local Compose has full dashboard provisioning and alert rules; K8s manifest currently has basic Prometheus/Grafana setup | Mount `serving/monitoring/prometheus-alerts.yml` and Grafana dashboard JSONs through K8s ConfigMaps |
-| Training CronJob still uses synthetic bootstrap as a fallback path | Rubric prefers production data -> feedback -> retraining, not only synthetic data | Make `scripts/run_mlops_pipeline.py` prefer feedback-built datasets from `training/build_training_set.py`, and use synthetic data only when feedback volume is too small |
-| MLflow registry needs Chameleon evidence | MLflow/Postgres/MinIO manifests and alias updates now exist, but final grading will want screenshots/logs from the running Chameleon deployment | Capture MLflow experiment runs, registered model versions, and `production`/`canary` alias changes during the week simulation |
-| Chameleon K8s needs real run evidence | Manifests render, but final grading will expect the system running on Chameleon | Apply staging/canary/production overlays, capture pods/services/CronJobs/logs, and record Grafana/Prometheus/video evidence |
-| Data-quality CronJob paths need production PVC data | The CronJob expects files under `/workspace/artifacts/data/`; those must exist in the shared PVC | Ensure pipeline writes canonical train/val/online feature files to those paths, or update the CronJob to use pipeline output paths |
-| Alerting lacks notification routing | Prometheus rules exist, but there is no Alertmanager notification path in K8s | For final polish, add Alertmanager or document dashboard-based alert review if notification setup is out of scope |
+| Gap                                                                  | Why it matters                                                                                                                                                   | Recommended next step                                                                                                                                                    |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| No full Terraform/Ansible infrastructure path yet                    | The course MLOps lab provisions Chameleon resources with Terraform and configures Kubernetes/Argo with Ansible; our bootstrap script is easier but less lab-like | Either add `tf/` and `ansible/` from the team's Chameleon setup, or explicitly document that the team is using a manual cluster plus bootstrap script                    |
+| No Argo Workflows/ArgoCD lifecycle yet                               | The course lifecycle path uses Argo Workflows for train/build/deploy/test/promote and ArgoCD for environment sync                                                | Convert the existing CronJobs and GitHub workflow into Argo `WorkflowTemplate`s if final grading expects lab-style GitOps evidence                                       |
+| Shared platform namespace is not separated yet                       | The course lab keeps accessory services in `k8s/platform` and app versions in staging/canary/production; our base repeats monitoring with each overlay           | Add `k8s/ml-system/platform` for MLflow, MinIO/Postgres, Prometheus, Grafana, and gateway/traffic routing                                                                |
+| K8s Actual image may not include this branch's frontend/core changes | The current K8s manifest references `actualbudget/actual-sync:latest`; final Kubernetes demo must run the modified Actual UI with prediction columns             | Build and push a custom Actual image from this branch, then update `k8s/ml-system/base/actual-sync.yaml` or split web/sync services with the custom image                |
+| K8s Grafana/Prometheus config is lighter than local Compose          | Local Compose has full dashboard provisioning and alert rules; K8s manifest currently has basic Prometheus/Grafana setup                                         | Mount `serving/monitoring/prometheus-alerts.yml` and Grafana dashboard JSONs through K8s ConfigMaps                                                                      |
+| Training CronJob still uses synthetic bootstrap as a fallback path   | Rubric prefers production data -> feedback -> retraining, not only synthetic data                                                                                | Make `scripts/run_mlops_pipeline.py` prefer feedback-built datasets from `training/build_training_set.py`, and use synthetic data only when feedback volume is too small |
+| MLflow registry needs Chameleon evidence                             | MLflow/Postgres/MinIO manifests and alias updates now exist, but final grading will want screenshots/logs from the running Chameleon deployment                  | Capture MLflow experiment runs, registered model versions, and `production`/`canary` alias changes during the week simulation                                            |
+| Chameleon K8s needs real run evidence                                | Manifests render, but final grading will expect the system running on Chameleon                                                                                  | Apply staging/canary/production overlays, capture pods/services/CronJobs/logs, and record Grafana/Prometheus/video evidence                                              |
+| Data-quality CronJob paths need production PVC data                  | The CronJob expects files under `/workspace/artifacts/data/`; those must exist in the shared PVC                                                                 | Ensure pipeline writes canonical train/val/online feature files to those paths, or update the CronJob to use pipeline output paths                                       |
+| Alerting lacks notification routing                                  | Prometheus rules exist, but there is no Alertmanager notification path in K8s                                                                                    | For final polish, add Alertmanager or document dashboard-based alert review if notification setup is out of scope                                                        |
 
 ### Recommended Final Evidence To Collect
 

@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: ml-retrain-evaluate-promote
 spec:
-  schedule: "0 */6 * * *"
+  schedule: '0 */6 * * *'
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 2
   failedJobsHistoryLimit: 3
@@ -44,7 +44,7 @@ spec:
                     secretKeyRef:
                       name: mlflow-platform-secrets
                       key: minio-root-password
-              command: ["python"]
+              command: ['python']
               args:
                 - scripts/run_mlops_pipeline.py
                 - --workspace-dir

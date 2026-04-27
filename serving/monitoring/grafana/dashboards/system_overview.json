@@ -5,13 +5,7 @@
   "schemaVersion": 39,
   "version": 1,
   "refresh": "5s",
-  "tags": [
-    "actual",
-    "demo",
-    "ml",
-    "overview",
-    "serving"
-  ],
+  "tags": ["actual", "demo", "ml", "overview", "serving"],
   "time": {
     "from": "now-1h",
     "to": "now"

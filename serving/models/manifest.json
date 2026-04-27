@@ -170,9 +170,7 @@
       },
       "sparse_fallback": {
         "enabled": true,
-        "allowed_sources": [
-          "derived"
-        ],
+        "allowed_sources": ["derived"],
         "blend_weight": 0.68,
         "no_signal_blend_weight": 0.94,
         "high_confidence_no_signal_blend_weight": 0.97,
@@ -388,9 +386,7 @@
     },
     "sparse_fallback": {
       "enabled": true,
-      "allowed_sources": [
-        "derived"
-      ],
+      "allowed_sources": ["derived"],
       "blend_weight": 0.68,
       "no_signal_blend_weight": 0.94,
       "high_confidence_no_signal_blend_weight": 0.97,

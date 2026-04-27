@@ -16,15 +16,15 @@ spec:
         app.kubernetes.io/name: smartcat-serving
         app.kubernetes.io/part-of: actual-smart-transaction-categorization
       annotations:
-        prometheus.io/scrape: "true"
+        prometheus.io/scrape: 'true'
         prometheus.io/path: /metrics
-        prometheus.io/port: "8000"
+        prometheus.io/port: '8000'
     spec:
       containers:
         - name: serving
           image: actualbudget/smartcat-serving:latest
           imagePullPolicy: IfNotPresent
-          command: ["python", "-m", "app.launch"]
+          command: ['python', '-m', 'app.launch']
           ports:
             - containerPort: 8000
               name: http
@@ -35,11 +35,11 @@ spec:
             - name: SERVICE_HOST
               value: 0.0.0.0
             - name: SERVICE_PORT
-              value: "8000"
+              value: '8000'
             - name: WEB_CONCURRENCY
               # Keep one worker per pod so Prometheus sees complete per-pod
               # metrics; use replicas/HPA below for production scaling.
-              value: "1"
+              value: '1'
             - name: RUNTIME_DIR
               value: /workspace/runtime
           volumeMounts:
@@ -64,7 +64,7 @@ spec:
               cpu: 500m
               memory: 1Gi
             limits:
-              cpu: "2"
+              cpu: '2'
               memory: 3Gi
       volumes:
         - name: ml-artifacts

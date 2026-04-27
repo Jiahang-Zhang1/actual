@@ -77,9 +77,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -123,9 +121,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -169,9 +165,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -223,9 +217,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -277,9 +269,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -322,9 +312,7 @@
       "options": {
         "reduceOptions": {
           "values": false,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -584,9 +572,7 @@
         "orientation": "horizontal",
         "reduceOptions": {
           "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -631,9 +617,7 @@
         "orientation": "horizontal",
         "reduceOptions": {
           "values": true,
-          "calcs": [
-            "lastNotNull"
-          ],
+          "calcs": ["lastNotNull"],
           "fields": ""
         }
       }
@@ -642,13 +626,7 @@
   "refresh": "5s",
   "schemaVersion": 39,
   "style": "dark",
-  "tags": [
-    "actual",
-    "ml",
-    "traffic",
-    "hpa",
-    "demo"
-  ],
+  "tags": ["actual", "ml", "traffic", "hpa", "demo"],
   "templating": {
     "list": []
   },

@@ -1,58 +1,157 @@
 <!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Actual ML Recommended Prometheus Queries</title>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 32px; color: #172033; }
-    h1 { margin-bottom: 4px; }
-    .hint { color: #5d6b82; margin-bottom: 24px; }
-    section { margin: 24px 0; }
-    a { color: #0b6bcb; text-decoration: none; }
-    a:hover { text-decoration: underline; }
-    code { background: #f1f5f9; padding: 2px 6px; border-radius: 5px; }
-    li { margin: 10px 0; }
-  </style>
-</head>
-<body>
-  <h1>Actual ML Recommended Queries</h1>
-  <p class="hint">Use these during the final demo when Prometheus is open. Grafana is the cleaner view; Prometheus is for showing the raw metric and alert expressions.</p>
+  <head>
+    <meta charset="utf-8" />
+    <title>Actual ML Recommended Prometheus Queries</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 32px;
+        color: #172033;
+      }
+      h1 {
+        margin-bottom: 4px;
+      }
+      .hint {
+        color: #5d6b82;
+        margin-bottom: 24px;
+      }
+      section {
+        margin: 24px 0;
+      }
+      a {
+        color: #0b6bcb;
+        text-decoration: none;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+      code {
+        background: #f1f5f9;
+        padding: 2px 6px;
+        border-radius: 5px;
+      }
+      li {
+        margin: 10px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Actual ML Recommended Queries</h1>
+    <p class="hint">
+      Use these during the final demo when Prometheus is open. Grafana is the
+      cleaner view; Prometheus is for showing the raw metric and alert
+      expressions.
+    </p>
 
-  <section>
-    <h2>Service health and traffic</h2>
-    <ul>
-      <li><a href="/graph?g0.expr=max(up%7Bjob%3D%22smartcat-serving%22%7D)&g0.tab=0"><code>max(up{job="smartcat-serving"})</code></a> - serving scrape health.</li>
-      <li><a href="/graph?g0.expr=smartcat%3Arequest_rate_5m&g0.tab=0"><code>smartcat:request_rate_5m</code></a> - predict request rate.</li>
-      <li><a href="/graph?g0.expr=smartcat%3Ap95_latency_ms_5m&g0.tab=0"><code>smartcat:p95_latency_ms_5m</code></a> - p95 latency in ms.</li>
-      <li><a href="/graph?g0.expr=smartcat%3Aerror_rate_5m&g0.tab=0"><code>smartcat:error_rate_5m</code></a> - 5xx error rate.</li>
-    </ul>
-  </section>
+    <section>
+      <h2>Service health and traffic</h2>
+      <ul>
+        <li>
+          <a
+            href="/graph?g0.expr=max(up%7Bjob%3D%22smartcat-serving%22%7D)&g0.tab=0"
+            ><code>max(up{job="smartcat-serving"})</code></a
+          >
+          - serving scrape health.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Arequest_rate_5m&g0.tab=0"
+            ><code>smartcat:request_rate_5m</code></a
+          >
+          - predict request rate.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Ap95_latency_ms_5m&g0.tab=0"
+            ><code>smartcat:p95_latency_ms_5m</code></a
+          >
+          - p95 latency in ms.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Aerror_rate_5m&g0.tab=0"
+            ><code>smartcat:error_rate_5m</code></a
+          >
+          - 5xx error rate.
+        </li>
+      </ul>
+    </section>
 
-  <section>
-    <h2>Model output</h2>
-    <ul>
-      <li><a href="/graph?g0.expr=smartcat%3Aavg_confidence_5m&g0.tab=0"><code>smartcat:avg_confidence_5m</code></a> - average prediction confidence.</li>
-      <li><a href="/graph?g0.expr=smartcat%3Alow_confidence_ratio_5m&g0.tab=0"><code>smartcat:low_confidence_ratio_5m</code></a> - low-confidence prediction share.</li>
-      <li><a href="/graph?g0.expr=topk(10%2C%20sum%20by%20(category_id)%20(increase(predicted_class_total%5B1h%5D)))&g0.tab=0"><code>topk(10, sum by (category_id) (increase(predicted_class_total[1h])))</code></a> - predicted category mix.</li>
-    </ul>
-  </section>
+    <section>
+      <h2>Model output</h2>
+      <ul>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Aavg_confidence_5m&g0.tab=0"
+            ><code>smartcat:avg_confidence_5m</code></a
+          >
+          - average prediction confidence.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Alow_confidence_ratio_5m&g0.tab=0"
+            ><code>smartcat:low_confidence_ratio_5m</code></a
+          >
+          - low-confidence prediction share.
+        </li>
+        <li>
+          <a
+            href="/graph?g0.expr=topk(10%2C%20sum%20by%20(category_id)%20(increase(predicted_class_total%5B1h%5D)))&g0.tab=0"
+            ><code
+              >topk(10, sum by (category_id)
+              (increase(predicted_class_total[1h])))</code
+            ></a
+          >
+          - predicted category mix.
+        </li>
+      </ul>
+    </section>
 
-  <section>
-    <h2>User feedback and rollout gates</h2>
-    <ul>
-      <li><a href="/graph?g0.expr=smartcat%3Atop1_acceptance_1h&g0.tab=0"><code>smartcat:top1_acceptance_1h</code></a> - user accepted model top-1 suggestion.</li>
-      <li><a href="/graph?g0.expr=smartcat%3Atop3_acceptance_1h&g0.tab=0"><code>smartcat:top3_acceptance_1h</code></a> - user chose any Top-3 suggestion.</li>
-      <li><a href="/graph?g0.expr=count(ALERTS%7Balertstate%3D%22firing%22%2Calertname%3D~%22Smartcat.*%22%7D)&g0.tab=0"><code>count(ALERTS{alertstate="firing",alertname=~"Smartcat.*"})</code></a> - active rollout alerts.</li>
-    </ul>
-  </section>
+    <section>
+      <h2>User feedback and rollout gates</h2>
+      <ul>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Atop1_acceptance_1h&g0.tab=0"
+            ><code>smartcat:top1_acceptance_1h</code></a
+          >
+          - user accepted model top-1 suggestion.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=smartcat%3Atop3_acceptance_1h&g0.tab=0"
+            ><code>smartcat:top3_acceptance_1h</code></a
+          >
+          - user chose any Top-3 suggestion.
+        </li>
+        <li>
+          <a
+            href="/graph?g0.expr=count(ALERTS%7Balertstate%3D%22firing%22%2Calertname%3D~%22Smartcat.*%22%7D)&g0.tab=0"
+            ><code
+              >count(ALERTS{alertstate="firing",alertname=~"Smartcat.*"})</code
+            ></a
+          >
+          - active rollout alerts.
+        </li>
+      </ul>
+    </section>
 
-  <section>
-    <h2>Data quality</h2>
-    <ul>
-      <li><a href="/graph?g0.expr=actual_data_quality_pass&g0.tab=0"><code>actual_data_quality_pass</code></a> - latest pass/fail by data stage.</li>
-      <li><a href="/graph?g0.expr=actual_data_quality_issue_count&g0.tab=0"><code>actual_data_quality_issue_count</code></a> - issue count by data stage.</li>
-      <li><a href="/graph?g0.expr=actual_data_quality_metric&g0.tab=0"><code>actual_data_quality_metric</code></a> - numeric ingestion/training/drift metrics.</li>
-    </ul>
-  </section>
-</body>
+    <section>
+      <h2>Data quality</h2>
+      <ul>
+        <li>
+          <a href="/graph?g0.expr=actual_data_quality_pass&g0.tab=0"
+            ><code>actual_data_quality_pass</code></a
+          >
+          - latest pass/fail by data stage.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=actual_data_quality_issue_count&g0.tab=0"
+            ><code>actual_data_quality_issue_count</code></a
+          >
+          - issue count by data stage.
+        </li>
+        <li>
+          <a href="/graph?g0.expr=actual_data_quality_metric&g0.tab=0"
+            ><code>actual_data_quality_metric</code></a
+          >
+          - numeric ingestion/training/drift metrics.
+        </li>
+      </ul>
+    </section>
+  </body>
 </html>

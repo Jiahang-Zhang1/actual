@@ -15,16 +15,16 @@ Cross-Origin-Embedder-Policy: require-corp
 
 ## Files
 
-| File | Purpose |
-| --- | --- |
+| File                            | Purpose                                                                                                               |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `actual-budget-deployment.yaml` | Runs the Actual Budget image on container port `5006` and exposes a private ClusterIP service on service port `8083`. |
-| `nginx-https-proxy.yaml` | Runs nginx on port `443`, mounts a TLS Secret, forwards to Actual service port `8083`, and exposes NodePort `30443`. |
-| `setup-nginx-https.sh` | Generates a self-signed certificate, stores it in K8s Secret `actual-nginx-tls`, then applies the manifests. |
-| `chameleon-open-30443.sh` | Optional OpenStack CLI helper to create/attach the `allow-30443-proj08` security group. |
-| `smartcat-serving.yaml` | Runs the SmartCat model serving service on port `8000` / NodePort `30090`. |
-| `smartcat-hpa.yaml` | Adds HPA rules for SmartCat serving. |
-| `alert-rules.yaml` | Adds Prometheus alert rules if the monitoring CRDs are installed. |
-| `kustomization.yaml` | Lets the team deploy the manifests as one bundle. |
+| `nginx-https-proxy.yaml`        | Runs nginx on port `443`, mounts a TLS Secret, forwards to Actual service port `8083`, and exposes NodePort `30443`.  |
+| `setup-nginx-https.sh`          | Generates a self-signed certificate, stores it in K8s Secret `actual-nginx-tls`, then applies the manifests.          |
+| `chameleon-open-30443.sh`       | Optional OpenStack CLI helper to create/attach the `allow-30443-proj08` security group.                               |
+| `smartcat-serving.yaml`         | Runs the SmartCat model serving service on port `8000` / NodePort `30090`.                                            |
+| `smartcat-hpa.yaml`             | Adds HPA rules for SmartCat serving.                                                                                  |
+| `alert-rules.yaml`              | Adds Prometheus alert rules if the monitoring CRDs are installed.                                                     |
+| `kustomization.yaml`            | Lets the team deploy the manifests as one bundle.                                                                     |
 
 ## Deploy on node1
 

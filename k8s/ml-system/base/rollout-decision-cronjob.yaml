@@ -5,7 +5,7 @@ metadata:
   labels:
     app.kubernetes.io/name: serving-rollout-decision
 spec:
-  schedule: "*/15 * * * *"
+  schedule: '*/15 * * * *'
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -40,7 +40,7 @@ spec:
                     secretKeyRef:
                       name: mlflow-platform-secrets
                       key: minio-root-password
-              command: ["python"]
+              command: ['python']
               args:
                 - serving/tools/execute_rollout_action.py
                 - --execute

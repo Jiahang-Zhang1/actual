@@ -102,6 +102,7 @@ artifacts/test-data/
 artifacts/test-rollout/
 artifacts/chameleon/
 artifacts/docker/
+artifacts/mlops-manual-robust/
 artifacts/mlops-pipeline/
 artifacts/test-results/
 artifacts/week-simulation/

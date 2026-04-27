@@ -84,4 +84,3 @@ PYTHONPATH=serving python3 -m pytest serving/tests data/tests -q
 ```
 
 Result: `34 passed`.
-
