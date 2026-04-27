@@ -73,6 +73,11 @@ SPARSE_VARIANTS = [
     "amount_only",
     "currency_only",
     "account_amount_only",
+    "payee_no_notes",
+    "payee_amount_conflict",
+    "payee_notes_conflict",
+    "camel_case_actual_payload",
+    "invalid_amount_string",
     "empty_payload",
 ]
 
@@ -92,6 +97,42 @@ def sparse_payload(variant: str | None = None) -> dict:
             "account_id": random.choice(ACCOUNTS),
             "amount": random_amount(),
             "currency": random.choice(CURRENCIES),
+        }
+    if variant == "payee_no_notes":
+        return {
+            "transaction_description": random.choice(DESCRIPTIONS),
+            "notes": "",
+            "amount": random_amount(),
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "payee_amount_conflict":
+        return {
+            "transaction_description": random.choice(
+                ["PAYROLL DIRECT DEPOSIT", "STARBUCKS STORE 1458", "LYFT RIDE"],
+            ),
+            "notes": "",
+            "amount": random.choice([-88.0, 2400.0, 0.0]),
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "payee_notes_conflict":
+        return {
+            "transaction_description": "LYFT RIDE",
+            "notes": "payroll deposit",
+            "amount": -18.2,
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "camel_case_actual_payload":
+        return {
+            "transactionDescription": random.choice(DESCRIPTIONS),
+            "transactionAmount": "$1,234.56",
+            "accountId": random.choice(ACCOUNTS),
+            "currency": random.choice(CURRENCIES),
+        }
+    if variant == "invalid_amount_string":
+        return {
+            "transaction_description": random.choice(DESCRIPTIONS),
+            "amount": "not-a-number",
+            "notes": "",
         }
     return {}
 

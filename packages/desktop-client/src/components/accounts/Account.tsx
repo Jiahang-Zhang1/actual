@@ -636,28 +636,29 @@ class AccountInternal extends PureComponent<
     );
 
     const predictionsById = Object.fromEntries(cachedEntries);
-    const missingTransactions = candidates.filter(transaction => {
-      const prediction = predictionsById[transaction.id];
-      return !prediction || this.getTopCategories(prediction).length === 0;
-    });
+    const batchPredictionsById =
+      await this.getRealtimePredictionsBatch(candidates);
 
-    if (missingTransactions.length > 0) {
-      const batchPredictionsById =
-        await this.getRealtimePredictionsBatch(missingTransactions);
+    await Promise.all(
+      candidates.map(async transaction => {
+        const realtimePrediction = batchPredictionsById[transaction.id];
+        if (realtimePrediction) {
+          predictionsById[transaction.id] = realtimePrediction;
+          return;
+        }
 
-      await Promise.all(
-        missingTransactions.map(async transaction => {
-          if (batchPredictionsById[transaction.id]) {
-            predictionsById[transaction.id] =
-              batchPredictionsById[transaction.id];
-            return;
-          }
+        const cachedPrediction = predictionsById[transaction.id];
+        if (
+          cachedPrediction &&
+          this.getTopCategories(cachedPrediction).length > 0
+        ) {
+          return;
+        }
 
-          predictionsById[transaction.id] =
-            (await this.getRealtimePrediction(transaction)) ?? null;
-        }),
-      );
-    }
+        predictionsById[transaction.id] =
+          (await this.getRealtimePrediction(transaction)) ?? null;
+      }),
+    );
 
     const autoCategoryUpdates = candidates
       .filter(

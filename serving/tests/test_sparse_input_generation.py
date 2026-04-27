@@ -69,6 +69,25 @@ def test_sparse_variants_include_whitespace_null_and_empty_shapes():
     assert empty_payload == {}
 
 
+def test_sparse_variants_include_professor_manual_entry_shapes():
+    row = build_balanced_rows(rows_per_category=1, seed=9183)[0]
+
+    payee_no_notes = variant_payload("payee_no_notes", row)
+    assert payee_no_notes["transaction_description"] == row["payee"]
+    assert payee_no_notes["notes"] == ""
+
+    conflict = variant_payload("payee_notes_conflict", row)
+    assert conflict["transaction_description"] == row["payee"]
+    assert conflict["notes"] != row["notes"]
+
+    camel_case = variant_payload("camel_case_actual_payload", row)
+    assert "transactionDescription" in camel_case
+    assert "transactionAmount" in camel_case
+
+    invalid_amount = variant_payload("invalid_amount_string", row)
+    assert invalid_amount["amount"] == "not-a-number"
+
+
 def test_sparse_matrix_cases_satisfy_predict_and_predict_batch_contract(monkeypatch, tmp_path):
     monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
     monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)

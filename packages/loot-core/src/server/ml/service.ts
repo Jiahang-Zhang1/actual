@@ -66,6 +66,7 @@ function toRequestBody(payload: MlPredictRequest) {
   return {
     transaction_id: payload.transactionId,
     transaction_description: buildFallbackDescription(payload),
+    merchant_text: sanitizeText(payload.transactionDescription, 256) || null,
     country: sanitizeText(payload.country, 32) || 'unknown',
     currency: sanitizeText(payload.currency, 16) || 'unknown',
     amount: payload.amount ?? null,
@@ -79,9 +80,7 @@ function toRequestBody(payload: MlPredictRequest) {
 
 // Guard the HTTP contract so callers always receive a top-k shape that the
 // frontend badge/popover logic can render safely.
-function normalizeTopCategories(
-  topCategories: unknown,
-): MlCategoryScore[] {
+function normalizeTopCategories(topCategories: unknown): MlCategoryScore[] {
   if (!Array.isArray(topCategories)) {
     return [];
   }

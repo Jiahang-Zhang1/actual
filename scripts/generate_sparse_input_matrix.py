@@ -54,6 +54,46 @@ VARIANT_METADATA = {
         "blank_style": "omitted",
         "description": "Only notes are present, simulating a manually typed memo.",
     },
+    "payee_no_notes": {
+        "blank_style": "empty-string",
+        "description": "A normal manual transaction with payee and amount but no notes.",
+    },
+    "payee_no_amount_no_notes": {
+        "blank_style": "omitted",
+        "description": "Payee is present, while amount and notes are missing.",
+    },
+    "payee_positive_amount_no_notes": {
+        "blank_style": "empty-string",
+        "description": "Payee is present with a positive amount and no notes.",
+    },
+    "payee_negative_amount_no_notes": {
+        "blank_style": "empty-string",
+        "description": "Payee is present with a negative amount and no notes.",
+    },
+    "payee_notes_conflict": {
+        "blank_style": "none",
+        "description": "Payee and notes intentionally point to different category signals.",
+    },
+    "payee_amount_conflict": {
+        "blank_style": "empty-string",
+        "description": "Payee text is clear, but amount sign/size points to a different prior.",
+    },
+    "camel_case_actual_payload": {
+        "blank_style": "omitted",
+        "description": "Browser/API clients send camelCase field names instead of snake_case.",
+    },
+    "invalid_amount_string": {
+        "blank_style": "invalid",
+        "description": "Amount is a user-entered string that cannot be parsed.",
+    },
+    "currency_amount_string": {
+        "blank_style": "formatted-string",
+        "description": "Amount is typed with currency formatting and commas.",
+    },
+    "unknown_extra_fields": {
+        "blank_style": "extra-fields",
+        "description": "Payload includes unrelated fields from a form or API caller.",
+    },
     "imported_only": {
         "blank_style": "omitted",
         "description": "Only imported_description is available from upstream import metadata.",
@@ -109,6 +149,19 @@ VARIANT_METADATA = {
 }
 
 VARIANT_NAMES = list(VARIANT_METADATA)
+
+CONFLICT_NOTES = {
+    "Charity & Donations": "payroll direct deposit",
+    "Entertainment & Recreation": "monthly internet bill",
+    "Financial Services": "restaurant dinner",
+    "Food & Dining": "irs tax payment",
+    "Government & Legal": "lyft ride home",
+    "Healthcare & Medical": "amazon retail purchase",
+    "Income": "movie tickets",
+    "Shopping & Retail": "medical pharmacy visit",
+    "Transportation": "payroll deposit",
+    "Utilities & Services": "coffee before class",
+}
 
 
 def account_slug(value: str) -> str:
@@ -209,6 +262,85 @@ def variant_payload(variant: str, row: dict[str, Any]) -> dict[str, Any]:
         }
     if variant == "notes_only":
         return pick_fields(payload, ["notes", "amount", "country", "currency"])
+    if variant == "payee_no_notes":
+        return {
+            "transaction_description": row["payee"],
+            "notes": "",
+            "amount": row["amount"],
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "payee_no_amount_no_notes":
+        return pick_fields(payload, ["transaction_description", "country", "currency"])
+    if variant == "payee_positive_amount_no_notes":
+        return {
+            "transaction_description": row["payee"],
+            "notes": "",
+            "amount": abs(float(row["amount"])),
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "payee_negative_amount_no_notes":
+        return {
+            "transaction_description": row["payee"],
+            "notes": "",
+            "amount": -abs(float(row["amount"])),
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "payee_notes_conflict":
+        return {
+            "transaction_description": row["payee"],
+            "notes": CONFLICT_NOTES[row["category"]],
+            "amount": row["amount"],
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "payee_amount_conflict":
+        conflict_amount = 2400.0
+        if row["category"] == "Income":
+            conflict_amount = -88.0
+        return {
+            "transaction_description": row["payee"],
+            "notes": "",
+            "amount": conflict_amount,
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "camel_case_actual_payload":
+        return {
+            "transactionDescription": row["payee"],
+            "importedDescription": row["imported_description"],
+            "transactionAmount": f"${abs(float(row['amount'])):,.2f}",
+            "transactionDate": row["transaction_date"],
+            "accountId": row["account_id"],
+            "currency": row["currency"],
+            "country": row["country"],
+        }
+    if variant == "invalid_amount_string":
+        return {
+            "transaction_description": row["payee"],
+            "notes": "",
+            "amount": "not-a-number",
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "currency_amount_string":
+        return {
+            "transaction_description": row["payee"],
+            "amount": f"${abs(float(row['amount'])):,.2f}",
+            "country": row["country"],
+            "currency": row["currency"],
+        }
+    if variant == "unknown_extra_fields":
+        return {
+            "transaction_description": row["payee"],
+            "amount": row["amount"],
+            "country": row["country"],
+            "currency": row["currency"],
+            "form_state": {"dirty": True, "source": "manual"},
+            "memo": "unmapped caller field",
+        }
     if variant == "imported_only":
         return pick_fields(payload, ["imported_description", "amount", "country", "currency"])
     if variant == "whitespace_description_notes_fallback":

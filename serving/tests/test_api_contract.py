@@ -107,6 +107,30 @@ def test_predict_endpoint_contract_accepts_camel_case_fields(monkeypatch, tmp_pa
     assert payload["predicted_category_id"] == "Food & Dining"
 
 
+def test_predict_endpoint_contract_accepts_payee_and_memo_aliases(monkeypatch, tmp_path):
+    monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
+    monkeypatch.setattr("app.main.RUNTIME_DIR", tmp_path)
+    monkeypatch.setattr("app.main.REQUEST_LOG", tmp_path / "request_events.jsonl")
+    monkeypatch.setattr("app.main.PREDICTION_LOG", tmp_path / "prediction_events.jsonl")
+
+    client = TestClient(app)
+    response = client.post(
+        "/predict",
+        headers={"X-Actual-Traffic-Source": "contract-test"},
+        json={
+            "payee": "STARBUCKS NO NOTES",
+            "memo": "",
+            "payment": "7.50",
+            "extra_professor_field": "ignored",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["predicted_category_id"] == "Food & Dining"
+    assert payload["confidence"] == payload["top_categories"][0]["score"]
+
+
 def test_predict_batch_endpoint_contract_with_online_features_shape(monkeypatch):
     monkeypatch.setattr("app.main.get_backend", lambda: DummyBackend())
     client = TestClient(app)

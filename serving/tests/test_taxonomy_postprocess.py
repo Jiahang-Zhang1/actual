@@ -77,6 +77,43 @@ def test_confidence_policy_uses_amount_based_sparse_prior_for_manual_entry():
     assert classes[int(np.argmax(adjusted))] == "Income"
 
 
+def test_keyword_fallback_handles_conflicting_notes_for_direct_payee():
+    classes = [
+        "Income",
+        "Transportation",
+        "Food & Dining",
+    ]
+    raw = np.array([0.61, 0.24, 0.15], dtype=float)
+    adjusted = apply_confidence_policy(
+        raw,
+        classes,
+        description="LYFT RIDE",
+        description_source="transaction_description",
+        amount=-18.2,
+        metadata={"confidence_policy": {}},
+    )
+    assert classes[int(np.argmax(adjusted))] == "Transportation"
+
+
+def test_amount_conflict_lowers_confidence_without_hiding_payee_signal():
+    classes = [
+        "Food & Dining",
+        "Income",
+        "Shopping & Retail",
+    ]
+    raw = np.array([0.90, 0.05, 0.05], dtype=float)
+    adjusted = apply_confidence_policy(
+        raw,
+        classes,
+        description="STARBUCKS STORE 1458",
+        description_source="transaction_description",
+        amount=2400.0,
+        metadata={"confidence_policy": {}},
+    )
+    assert classes[int(np.argmax(adjusted))] == "Food & Dining"
+    assert float(np.max(adjusted)) < 0.85
+
+
 def test_confidence_policy_overrides_no_signal_healthcare_bias_with_conservative_prior():
     classes = [
         "Healthcare & Medical",

@@ -96,12 +96,16 @@ def blend_keyword_rule(
     target_idx = class_to_index[matched_category]
     top1_confidence = float(np.max(matrix))
     max_primary_confidence = float(keyword_policy.get("max_primary_confidence", 0.55))
+    high_confidence_override = float(keyword_policy.get("high_confidence_override", 0.82))
     blend_weight = float(keyword_policy.get("blend_weight", 0.35))
     blend_weight = min(max(blend_weight, 0.0), 1.0)
 
     if top1_confidence > max_primary_confidence and int(np.argmax(matrix)) == target_idx:
         return matrix
-    if top1_confidence > max_primary_confidence and description_source not in {"notes", "derived"}:
+    if (
+        top1_confidence > high_confidence_override
+        and description_source not in {"notes", "derived"}
+    ):
         return matrix
 
     boost = np.zeros_like(matrix)
@@ -147,6 +151,55 @@ def _distribution_for_classes(
     return _normalize_rows(vector)
 
 
+def _amount_prior_vector(
+    classes: list[str],
+    amount: float | None,
+    policy: Mapping[str, Any] | None,
+) -> np.ndarray | None:
+    amount_key = _amount_prior_key(amount)
+    if not policy or not amount_key:
+        return None
+    return _distribution_for_classes(
+        classes,
+        (policy.get("amount_priors") or {}).get(amount_key),
+    )
+
+
+def blend_amount_conflict_prior(
+    probabilities: np.ndarray,
+    classes: list[str],
+    *,
+    description: str,
+    description_source: str,
+    amount: float | None,
+    amount_conflict_policy: Mapping[str, Any] | None,
+) -> np.ndarray:
+    if not amount_conflict_policy or not amount_conflict_policy.get("enabled", False):
+        return probabilities
+
+    allowed_sources = set(amount_conflict_policy.get("allowed_sources") or [])
+    if allowed_sources and description_source not in allowed_sources:
+        return probabilities
+
+    keyword_category = keyword_rule_match(description)
+    if not keyword_category or keyword_category not in classes:
+        return probabilities
+
+    amount_prior = _amount_prior_vector(classes, amount, amount_conflict_policy)
+    if amount_prior is None:
+        return probabilities
+
+    amount_category = classes[int(np.argmax(amount_prior))]
+    if amount_category == keyword_category:
+        return probabilities
+
+    blend_weight = float(amount_conflict_policy.get("blend_weight", 0.18))
+    blend_weight = min(max(blend_weight, 0.0), 1.0)
+    matrix = np.asarray(probabilities, dtype=float).copy()
+    blended = ((1.0 - blend_weight) * matrix) + (blend_weight * amount_prior)
+    return _normalize_rows(blended)
+
+
 def blend_sparse_prior(
     probabilities: np.ndarray,
     classes: list[str],
@@ -166,11 +219,7 @@ def blend_sparse_prior(
     matrix = np.asarray(probabilities, dtype=float).copy()
     class_to_index = {label: idx for idx, label in enumerate(classes)}
 
-    amount_key = _amount_prior_key(amount)
-    amount_prior_vector = _distribution_for_classes(
-        classes,
-        (sparse_policy.get("amount_priors") or {}).get(amount_key) if amount_key else None,
-    )
+    amount_prior_vector = _amount_prior_vector(classes, amount, sparse_policy)
     account_category = account_hint_match(account_id)
     account_prior_vector = None
     if account_category and account_category in class_to_index:
@@ -212,12 +261,13 @@ def blend_sparse_prior(
 
 def default_confidence_policy() -> dict[str, Any]:
     return {
-        "method": "temperature_keyword_sparse_fallback",
+        "method": "temperature_keyword_amount_conflict_sparse_fallback",
         "temperature": 1.0,
         "keyword_fallback": {
             "enabled": True,
-            "blend_weight": 0.35,
+            "blend_weight": 0.55,
             "max_primary_confidence": 0.58,
+            "high_confidence_override": 0.82,
             "allowed_sources": [
                 "transaction_description",
                 "transaction_description_clean",
@@ -226,6 +276,18 @@ def default_confidence_policy() -> dict[str, Any]:
                 "notes",
                 "derived",
             ],
+        },
+        "amount_conflict_fallback": {
+            "enabled": True,
+            "blend_weight": 0.18,
+            "allowed_sources": [
+                "transaction_description",
+                "transaction_description_clean",
+                "merchant_text",
+                "imported_description",
+                "notes",
+            ],
+            "amount_priors": SPARSE_AMOUNT_PRIORS,
         },
         "sparse_fallback": {
             "enabled": True,
@@ -263,6 +325,14 @@ def apply_confidence_policy(
         description,
         description_source,
         policy.get("keyword_fallback"),
+    )
+    blended = blend_amount_conflict_prior(
+        blended,
+        classes,
+        description=description,
+        description_source=description_source,
+        amount=amount,
+        amount_conflict_policy=policy.get("amount_conflict_fallback"),
     )
     blended = blend_sparse_prior(
         blended,

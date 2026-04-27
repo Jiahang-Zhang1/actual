@@ -39,7 +39,12 @@ class PredictRequest(_Model):
 
     transaction_description: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("transaction_description", "transactionDescription"),
+        validation_alias=AliasChoices(
+            "transaction_description",
+            "transactionDescription",
+            "description",
+            "transaction",
+        ),
     )
     transaction_description_clean: Optional[str] = Field(
         default=None,
@@ -50,7 +55,15 @@ class PredictRequest(_Model):
     )
     merchant_text: Optional[str] = Field(
         default=None,
-        validation_alias=AliasChoices("merchant_text", "merchantText"),
+        validation_alias=AliasChoices(
+            "merchant_text",
+            "merchantText",
+            "merchant",
+            "merchantName",
+            "payee",
+            "payee_name",
+            "payeeName",
+        ),
     )
 
     country: Optional[str] = "US"
@@ -58,7 +71,14 @@ class PredictRequest(_Model):
 
     amount: Optional[float] = Field(
         default=None,
-        validation_alias=AliasChoices("amount", "transaction_amount", "transactionAmount"),
+        validation_alias=AliasChoices(
+            "amount",
+            "transaction_amount",
+            "transactionAmount",
+            "payment",
+            "deposit",
+            "value",
+        ),
     )
     transaction_date: Optional[str] = Field(
         default=None,
@@ -76,7 +96,10 @@ class PredictRequest(_Model):
         default=None,
         validation_alias=AliasChoices("imported_description", "importedDescription"),
     )
-    notes: Optional[str] = None
+    notes: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("notes", "note", "memo", "comment"),
+    )
     description_length: Optional[int] = Field(
         default=None,
         validation_alias=AliasChoices("description_length", "descriptionLength"),

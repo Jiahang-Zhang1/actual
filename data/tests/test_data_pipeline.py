@@ -44,6 +44,11 @@ def test_data_generator_can_emit_sparse_manual_payloads():
             "notes_only",
             "amount_only",
             "account_amount_only",
+            "payee_no_notes",
+            "payee_amount_conflict",
+            "payee_notes_conflict",
+            "camel_case_actual_payload",
+            "invalid_amount_string",
             "empty_payload",
         ]
     }
@@ -53,6 +58,10 @@ def test_data_generator_can_emit_sparse_manual_payloads():
     assert "amount" in payloads["amount_only"]
     assert "transaction_description" not in payloads["amount_only"]
     assert "account_id" in payloads["account_amount_only"]
+    assert payloads["payee_no_notes"]["notes"] == ""
+    assert payloads["payee_notes_conflict"]["transaction_description"] == "LYFT RIDE"
+    assert "transactionDescription" in payloads["camel_case_actual_payload"]
+    assert payloads["invalid_amount_string"]["amount"] == "not-a-number"
     assert "transaction_description" in build_payload(sparse_rate=0.0)
 
 
