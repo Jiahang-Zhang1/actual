@@ -581,11 +581,25 @@ function getCompactCategoryName(categoryName: string) {
 }
 
 function normalizeMlCategoryKey(value: null | string | undefined) {
-  return (value ?? '')
+  const normalized = (value ?? '')
     .replace(/&/g, 'and')
     .replace(/[^a-zA-Z0-9]+/g, ' ')
     .trim()
     .toLowerCase();
+
+  const aliases: Record<string, string> = {
+    charity: 'charity and donations',
+    entertainment: 'entertainment and recreation',
+    financial: 'financial services',
+    food: 'food and dining',
+    'gov legal': 'government and legal',
+    healthcare: 'healthcare and medical',
+    shopping: 'shopping and retail',
+    transport: 'transportation',
+    utilities: 'utilities and services',
+  };
+
+  return aliases[normalized] ?? normalized;
 }
 
 function getMlCategoryMatchKey({
@@ -615,6 +629,11 @@ function getMlCategoryMatchKey({
     return normalizeMlCategoryKey(
       matchingSuggestion.category_name ||
         categoriesById[matchingSuggestion.category_id]?.name ||
+        getCategoryDisplayName(
+          categoryGroups,
+          matchingSuggestion.category_id,
+          suggestion ?? null,
+        ) ||
         matchingSuggestion.category_id,
     );
   }
@@ -648,6 +667,7 @@ function isMlCategoryMatch({
     item.category_id,
     item.category_name,
     categoriesById[item.category_id]?.name,
+    getCategoryDisplayName(categoryGroups, item.category_id, suggestion),
   ].some(value => normalizeMlCategoryKey(value) === selectedKey);
 }
 
