@@ -22,11 +22,25 @@ function parseTopCategories(topCategoriesJson: null | string | undefined) {
 }
 
 function normalizeCategoryKey(value: null | string | undefined) {
-  return (value ?? '')
+  const normalized = (value ?? '')
     .replace(/&/g, 'and')
     .replace(/[^a-zA-Z0-9]+/g, ' ')
     .trim()
     .toLowerCase();
+
+  const aliases: Record<string, string> = {
+    charity: 'charity and donations',
+    entertainment: 'entertainment and recreation',
+    financial: 'financial services',
+    food: 'food and dining',
+    'gov legal': 'government and legal',
+    healthcare: 'healthcare and medical',
+    shopping: 'shopping and retail',
+    transport: 'transportation',
+    utilities: 'utilities and services',
+  };
+
+  return aliases[normalized] ?? normalized;
 }
 
 export async function savePrediction(
