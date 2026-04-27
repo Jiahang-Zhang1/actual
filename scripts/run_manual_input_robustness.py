@@ -63,6 +63,41 @@ CASES = [
         expected_top1="Transportation",
     ),
     ManualCase(
+        "lyft_ride_home_amount_regression",
+        {
+            "transaction_description": "lyft 18.2 ride home",
+            "notes": "",
+            "amount": -18.20,
+            "currency": "USD",
+            "country": "US",
+        },
+        expected_top1="Transportation",
+        max_confidence=0.8,
+    ),
+    ManualCase(
+        "uber_payment_alias_no_notes",
+        {
+            "payee": "UBER *TRIP HELP.UBER.COM",
+            "memo": "",
+            "payment": "23.45",
+            "currency": "USD",
+        },
+        expected_top1="Transportation",
+        max_confidence=0.8,
+    ),
+    ManualCase(
+        "mta_notes_only",
+        {
+            "transaction_description": "",
+            "notes": "mta subway fare commute",
+            "amount": -2.90,
+            "currency": "USD",
+            "country": "US",
+        },
+        expected_top1="Transportation",
+        max_confidence=0.9,
+    ),
+    ManualCase(
         "notes_no_payee",
         {
             "transaction_description": "",

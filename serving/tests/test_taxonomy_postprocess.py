@@ -22,6 +22,7 @@ def test_temperature_scaling_reduces_overconfident_top1_score():
 def test_keyword_rule_match_finds_canonical_category():
     assert keyword_rule_match("Monthly Verizon phone bill autopay") == "Utilities & Services"
     assert keyword_rule_match("Payroll direct deposit from employer") == "Income"
+    assert keyword_rule_match("lyft 18.2 ride home") == "Transportation"
 
 
 def test_account_hint_match_finds_category_from_account_name():
@@ -93,6 +94,26 @@ def test_keyword_fallback_handles_conflicting_notes_for_direct_payee():
         metadata={"confidence_policy": {}},
     )
     assert classes[int(np.argmax(adjusted))] == "Transportation"
+
+
+def test_transport_keyword_beats_income_bias_for_lyft_manual_entry():
+    classes = [
+        "Income",
+        "Transportation",
+        "Food & Dining",
+        "Shopping & Retail",
+    ]
+    raw = np.array([0.66, 0.18, 0.10, 0.06], dtype=float)
+    adjusted = apply_confidence_policy(
+        raw,
+        classes,
+        description="lyft 18.2 ride home",
+        description_source="transaction_description",
+        amount=-18.2,
+        metadata={"confidence_policy": {}},
+    )
+    assert classes[int(np.argmax(adjusted))] == "Transportation"
+    assert float(np.max(adjusted)) <= 0.8
 
 
 def test_amount_conflict_lowers_confidence_without_hiding_payee_signal():

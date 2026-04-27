@@ -101,8 +101,17 @@ actual.config.js
 artifacts/test-data/
 artifacts/test-rollout/
 artifacts/chameleon/
+artifacts/docker/
+artifacts/mlops-pipeline/
+artifacts/test-results/
+artifacts/week-simulation/
+mlflow.db
+mlruns/
 .venv-chameleon/
+scripts/__pycache__/
+training/__pycache__/
 serving/.env
+serving/.venv-traffic/
 serving/runtime/
 serving/.pytest_cache/
 serving/**/__pycache__/
@@ -112,3 +121,4 @@ serving/results/raw/*
 !serving/results/raw/.gitkeep
 serving/results/summary/_temp_*.json
 serving/results/summary/all_results.*
+serving/results/summary/*.json

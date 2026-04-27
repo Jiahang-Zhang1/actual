@@ -595,12 +595,13 @@ def main():
             classes,
         )
         confidence_policy = {
-            "method": "temperature_keyword_sparse_fallback",
+            "method": "temperature_keyword_amount_conflict_sparse_fallback",
             "temperature": round(float(temperature), 6),
             "keyword_fallback": {
                 "enabled": True,
-                "blend_weight": 0.35,
+                "blend_weight": 0.55,
                 "max_primary_confidence": 0.58,
+                "high_confidence_override": 0.82,
                 "allowed_sources": [
                     "transaction_description",
                     "transaction_description_clean",
@@ -609,6 +610,18 @@ def main():
                     "notes",
                     "derived",
                 ],
+            },
+            "amount_conflict_fallback": {
+                "enabled": True,
+                "blend_weight": 0.18,
+                "allowed_sources": [
+                    "transaction_description",
+                    "transaction_description_clean",
+                    "merchant_text",
+                    "imported_description",
+                    "notes",
+                ],
+                "amount_priors": SPARSE_AMOUNT_PRIORS,
             },
             "sparse_fallback": {
                 "enabled": True,

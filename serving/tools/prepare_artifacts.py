@@ -82,6 +82,7 @@ def export_onnx(source_model_path: Path, target_path: Path, sample_frame: pd.Dat
 
 
 def quantize_dynamic_model(source_onnx_path: Path, target_quant_path: Path) -> None:
+    import onnx
     from onnxruntime.quantization import QuantType, quantize_dynamic
 
     target_quant_path.parent.mkdir(parents=True, exist_ok=True)
@@ -89,6 +90,7 @@ def quantize_dynamic_model(source_onnx_path: Path, target_quant_path: Path) -> N
         str(source_onnx_path),
         str(target_quant_path),
         weight_type=QuantType.QInt8,
+        extra_options={"DefaultTensorType": onnx.TensorProto.FLOAT},
     )
 
 

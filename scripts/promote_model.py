@@ -115,6 +115,16 @@ def main():
     parser.add_argument("--min-top3-accuracy", type=float, default=0.70)
     parser.add_argument("--min-macro-f1", type=float, default=0.55)
     parser.add_argument(
+        "--comparison-mode",
+        choices=("champion-gte", "threshold-only"),
+        default=os.environ.get("PROMOTION_COMPARISON_MODE", "champion-gte"),
+        help=(
+            "champion-gte requires the challenger metric to match or beat the current champion. "
+            "threshold-only is for deliberate dataset/taxonomy refreshes where old champion metrics "
+            "were measured on a non-comparable dataset."
+        ),
+    )
+    parser.add_argument(
         "--mlflow-target-alias",
         default=os.environ.get("MLFLOW_PROMOTION_ALIAS", "production"),
         help="MLflow alias to point at the promoted challenger.",
@@ -136,17 +146,24 @@ def main():
     challenger_metadata = load_metadata(challenger_dir)
     champion_metadata = load_metadata(deployed_dir)
 
+    champion_comparison_ok = (
+        args.comparison_mode == "threshold-only"
+        or challenger_metrics.get(args.metric, 0.0) >= champion_metrics.get(args.metric, 0.0)
+    )
+
     challenger_ok = (
         (not challenger_gate["checked"] or bool(challenger_gate["passed"]))
         and challenger_metrics.get("top1_accuracy", 0.0) >= 0.0
         and challenger_metrics.get("top3_accuracy", 0.0) >= args.min_top3_accuracy
         and challenger_metrics.get("macro_f1", 0.0) >= args.min_macro_f1
-        and challenger_metrics.get(args.metric, 0.0) >= champion_metrics.get(args.metric, 0.0)
+        and champion_comparison_ok
     )
 
     decision = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "metric": args.metric,
+        "comparison_mode": args.comparison_mode,
+        "champion_comparison_ok": champion_comparison_ok,
         "challenger_metrics": challenger_metrics,
         "champion_metrics": champion_metrics,
         "challenger_gate": challenger_gate,

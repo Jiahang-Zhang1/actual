@@ -1,23 +1,24 @@
 {
-  "model_version": "v2_tfidf_linearsvc",
-  "code_version": "unknown",
+  "model_version": "v20260427184544",
+  "code_version": "serving",
   "source_model_path": "/workspace/models/source/v2_tfidf_linearsvc_model.joblib",
   "optimized_model_paths": {
     "onnx": "/workspace/models/optimized/v2_tfidf_linearsvc_model.onnx",
     "onnx_dynamic_quant": "/workspace/models/optimized/v2_tfidf_linearsvc_model.dynamic_quant.onnx"
   },
   "sizes_mb": {
-    "source": 3.4324,
-    "onnx": 2.2605,
-    "onnx_dynamic_quant": 2.2609
+    "source": 0.1703,
+    "onnx": 0.1118,
+    "onnx_dynamic_quant": 0.1122
   },
   "validation_sample": {
-    "baseline_label": "Food & Dining",
-    "onnx_label": "Food & Dining",
-    "onnx_dynamic_quant_label": "Food & Dining",
-    "baseline_top1_confidence": 0.401855,
-    "onnx_top1_confidence": 0.401855,
-    "onnx_dynamic_quant_top1_confidence": 0.401855
+    "sample": "LYFT 18.2 RIDE HOME",
+    "baseline_label": "Transportation",
+    "onnx_label": "Transportation",
+    "onnx_dynamic_quant_label": "Transportation",
+    "baseline_top1_confidence": 0.834541,
+    "onnx_top1_confidence": 0.825206,
+    "onnx_dynamic_quant_top1_confidence": 0.825206
   },
   "classes": [
     "Charity & Donations",
@@ -30,5 +31,25 @@
     "Shopping & Retail",
     "Transportation",
     "Utilities & Services"
-  ]
+  ],
+  "training_metrics": {
+    "validation": {
+      "row_count": 360,
+      "top1_accuracy": 0.9666666666666667,
+      "macro_f1": 0.9686841395285258,
+      "top3_accuracy": 0.9833333333333333
+    },
+    "test": {
+      "row_count": 360,
+      "top1_accuracy": 0.9861111111111112,
+      "macro_f1": 0.9868973688015711,
+      "top3_accuracy": 0.9944444444444445
+    }
+  },
+  "mlflow": {
+    "run_id": "0d093c7c74424f8295055a93cb801255",
+    "model_name": "actual-smart-transaction-categorizer",
+    "model_version": "1",
+    "production_alias": "production"
+  }
 }

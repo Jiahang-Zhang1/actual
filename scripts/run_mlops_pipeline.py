@@ -60,6 +60,20 @@ def main() -> None:
     parser.add_argument("--per-class-support-min", type=int, default=10)
     parser.add_argument("--high-confidence-threshold", type=float, default=0.70)
     parser.add_argument("--label-mapping-file")
+    parser.add_argument(
+        "--model-families",
+        default="logreg",
+        help=(
+            "Comma-separated training candidates passed to training/train_model.py. "
+            "The default keeps the promoted artifact stable under ONNX dynamic quantization."
+        ),
+    )
+    parser.add_argument(
+        "--promotion-comparison-mode",
+        choices=("champion-gte", "threshold-only"),
+        default="champion-gte",
+        help="Forwarded to scripts/promote_model.py.",
+    )
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parents[1]
@@ -116,6 +130,8 @@ def main() -> None:
             str(challenger_dir),
             "--run-name",
             "automated-retrain",
+            "--model-families",
+            args.model_families,
         ],
         repo,
     )
@@ -196,6 +212,8 @@ def main() -> None:
             str(args.min_top3_accuracy),
             "--min-macro-f1",
             str(args.min_macro_f1),
+            "--comparison-mode",
+            args.promotion_comparison_mode,
         ],
         repo,
     )
