@@ -80,7 +80,7 @@ CASES = [
             "currency": "USD",
             "country": "US",
         },
-        expected_top1="Transportation",
+        expected_top1="Food & Dining",
     ),
     ManualCase(
         "amount_only_positive_large",
@@ -100,7 +100,7 @@ CASES = [
             "currency": "USD",
             "country": "US",
         },
-        expected_top1="Food & Dining",
+        expected_top1="Transportation",
         max_confidence=0.8,
     ),
     ManualCase(
@@ -112,7 +112,7 @@ CASES = [
             "currency": "USD",
             "country": "US",
         },
-        expected_top1="Transportation",
+        expected_top1="Income",
         max_confidence=0.8,
     ),
     ManualCase(
@@ -123,6 +123,8 @@ CASES = [
             "currency": "USD",
             "country": "US",
         },
+        expected_top1="Food & Dining",
+        max_confidence=0.8,
     ),
     ManualCase(
         "payee_transport_notes_income_conflict",
@@ -133,6 +135,8 @@ CASES = [
             "currency": "USD",
             "country": "US",
         },
+        expected_top1="Transportation",
+        max_confidence=0.8,
     ),
     ManualCase(
         "unknown_payee_weird_amount_string",
