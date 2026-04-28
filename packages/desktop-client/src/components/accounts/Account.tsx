@@ -288,6 +288,63 @@ const ML_CATEGORY_ALIASES: Record<string, string[]> = {
   'utilities and services': ['Power', 'Water', 'Internet', 'Cell'],
 };
 
+const ML_MERCHANT_CATEGORY_HINTS: Array<{
+  category: string;
+  keywords: string[];
+}> = [
+  {
+    category: 'Food & Dining',
+    keywords: [
+      'cafe',
+      'chipotle',
+      'coffee',
+      'doordash',
+      'dunkin',
+      'grubhub',
+      'kfc',
+      'mcdonald',
+      'pizza',
+      'restaurant',
+      'starbucks',
+      'subway',
+      'taco bell',
+      'ubereats',
+    ],
+  },
+  {
+    category: 'Transportation',
+    keywords: [
+      'bp',
+      'exxon',
+      'fuel',
+      'gas station',
+      'lyft',
+      'metro',
+      'rideshare',
+      'shell',
+      'taxi',
+      'transit',
+      'uber',
+    ],
+  },
+  {
+    category: 'Entertainment & Recreation',
+    keywords: ['amc', 'cinema', 'movie', 'netflix', 'spotify', 'theater'],
+  },
+  {
+    category: 'Utilities & Services',
+    keywords: ['con edison', 'coned', 'electric', 'electricity', 'internet'],
+  },
+  {
+    category: 'Healthcare & Medical',
+    keywords: ['medical', 'pharmacy', 'quest diagnostics', 'walgreens'],
+  },
+  {
+    category: 'Income',
+    keywords: ['direct deposit', 'paycheck', 'payroll', 'salary'],
+  },
+];
+
 type AccountInternalState = {
   search: string;
   filterConditions: ConditionEntity[];
@@ -371,6 +428,21 @@ class AccountInternal extends PureComponent<
       .replace(/[^a-zA-Z0-9]+/g, ' ')
       .trim()
       .toLowerCase();
+
+  getMlMerchantCategoryHint = (textSignal?: string) => {
+    const normalizedTextSignal = this.normalizeCategoryName(textSignal || '');
+    if (!normalizedTextSignal) {
+      return null;
+    }
+
+    return (
+      ML_MERCHANT_CATEGORY_HINTS.find(({ keywords }) =>
+        keywords.some(keyword =>
+          normalizedTextSignal.includes(this.normalizeCategoryName(keyword)),
+        ),
+      )?.category ?? null
+    );
+  };
 
   getCategoryCandidates = (): CategoryEntity[] =>
     this.props.categoryGroups.flatMap(group => group.categories ?? []);
@@ -575,19 +647,85 @@ class AccountInternal extends PureComponent<
     return topCategory.score >= 0.62;
   };
 
+  isMlCategoryApplied = (
+    transaction: TransactionEntity,
+    resolvedCategory: {
+      categoryId: string;
+      categoryName: string;
+    },
+  ) => {
+    if (!transaction.category) {
+      return false;
+    }
+
+    if (transaction.category === resolvedCategory.categoryId) {
+      return true;
+    }
+
+    const currentCategory = this.getCategoryCandidates().find(
+      category => category.id === transaction.category,
+    );
+    return (
+      this.normalizeCategoryName(currentCategory?.name ?? '') ===
+      this.normalizeCategoryName(resolvedCategory.categoryName)
+    );
+  };
+
+  applyMlMerchantCategoryHint = (
+    prediction: MlPrediction,
+    textSignal?: string,
+  ): MlPrediction => {
+    const hintedCategory = this.getMlMerchantCategoryHint(textSignal);
+    if (!hintedCategory) {
+      return prediction;
+    }
+
+    const hintedKey = this.normalizeCategoryName(hintedCategory);
+    const topCategories = this.getTopCategories(prediction);
+    const existingHint = topCategories.find(
+      item => this.normalizeCategoryName(item.category_id) === hintedKey,
+    );
+    const hintedScore = Math.max(
+      prediction.confidence,
+      existingHint?.score ?? 0,
+      0.9,
+    );
+
+    return {
+      ...prediction,
+      predicted_category_id: hintedCategory,
+      confidence: hintedScore,
+      top_categories: [
+        {
+          category_id: hintedCategory,
+          category_name: hintedCategory,
+          score: hintedScore,
+        },
+        ...topCategories.filter(
+          item => this.normalizeCategoryName(item.category_id) !== hintedKey,
+        ),
+      ].slice(0, 3),
+    };
+  };
+
   normalizeMlPredictionCategories = (
     prediction: MlPrediction | null,
+    textSignal?: string,
   ): MlPrediction | null => {
     if (!prediction) {
       return null;
     }
 
+    const predictionWithHint = this.applyMlMerchantCategoryHint(
+      prediction,
+      textSignal,
+    );
     const topCategories: NonNullable<MlPrediction['top_categories']> = [];
     const seenCategoryIds = new Set<string>();
-    for (const item of [...this.getTopCategories(prediction)].sort(
+    for (const item of [...this.getTopCategories(predictionWithHint)].sort(
       (left, right) => right.score - left.score,
     )) {
-      const resolved = this.resolveMlCategory(item.category_id);
+      const resolved = this.resolveMlCategory(item.category_id, textSignal);
       if (seenCategoryIds.has(resolved.categoryId)) {
         continue;
       }
@@ -603,10 +741,11 @@ class AccountInternal extends PureComponent<
     }
 
     return {
-      ...prediction,
+      ...predictionWithHint,
       predicted_category_id:
-        topCategories[0]?.category_id ?? prediction.predicted_category_id,
-      confidence: topCategories[0]?.score ?? prediction.confidence,
+        topCategories[0]?.category_id ??
+        predictionWithHint.predicted_category_id,
+      confidence: topCategories[0]?.score ?? predictionWithHint.confidence,
       top_categories: topCategories,
     };
   };
@@ -614,6 +753,7 @@ class AccountInternal extends PureComponent<
   toMlPrediction = (
     transactionId: string,
     result: unknown,
+    textSignal?: string,
   ): MlPrediction | null => {
     const parsed = result as
       | {
@@ -651,13 +791,16 @@ class AccountInternal extends PureComponent<
       return null;
     }
 
-    return this.normalizeMlPredictionCategories({
-      transaction_id: transactionId,
-      model_version: parsed.model_version,
-      predicted_category_id: parsed.predicted_category_id,
-      confidence: parsed.confidence,
-      top_categories: topCategories,
-    });
+    return this.normalizeMlPredictionCategories(
+      {
+        transaction_id: transactionId,
+        model_version: parsed.model_version,
+        predicted_category_id: parsed.predicted_category_id,
+        confidence: parsed.confidence,
+        top_categories: topCategories,
+      },
+      textSignal,
+    );
   };
 
   isMlPrediction = (value: unknown): value is MlPrediction => {
@@ -706,7 +849,11 @@ class AccountInternal extends PureComponent<
         payload: this.buildPredictionPayload(transaction),
       })) as unknown;
 
-      return this.toMlPrediction(transaction.id, result);
+      return this.toMlPrediction(
+        transaction.id,
+        result,
+        this.getTransactionMlTextSignal(transaction),
+      );
     } catch (e) {
       console.error('Failed to get realtime ML prediction', e);
       return null;
@@ -756,6 +903,10 @@ class AccountInternal extends PureComponent<
           continue;
         }
 
+        const transactionsById = new Map(
+          chunk.map(transaction => [transaction.id, transaction]),
+        );
+
         results.forEach(item => {
           if (
             !item ||
@@ -765,9 +916,15 @@ class AccountInternal extends PureComponent<
             return;
           }
 
+          const transaction = transactionsById.get(item.transactionId);
+          if (!transaction) {
+            return;
+          }
+
           predictionsById[item.transactionId] = this.toMlPrediction(
             item.transactionId,
             item.prediction,
+            this.getTransactionMlTextSignal(transaction),
           );
         });
       } catch (e) {
@@ -828,12 +985,7 @@ class AccountInternal extends PureComponent<
     );
 
     const autoCategoryUpdates = candidates
-      .filter(
-        transaction =>
-          !transaction.category &&
-          !transaction.is_child &&
-          !transaction.is_parent,
-      )
+      .filter(transaction => !transaction.is_child && !transaction.is_parent)
       .map(transaction => {
         const topCategory = this.getTopCategories(
           predictionsById[transaction.id],
@@ -844,18 +996,23 @@ class AccountInternal extends PureComponent<
               this.getTransactionMlTextSignal(transaction),
             )
           : null;
-        return topCategory &&
-          resolvedTopCategory &&
-          this.shouldAutoApplyMlSuggestion(
+        if (
+          !topCategory ||
+          !resolvedTopCategory ||
+          this.isMlCategoryApplied(transaction, resolvedTopCategory) ||
+          !this.shouldAutoApplyMlSuggestion(
             transaction,
             topCategory,
             resolvedTopCategory,
           )
-          ? {
-              id: transaction.id,
-              category: resolvedTopCategory.categoryId,
-            }
-          : null;
+        ) {
+          return null;
+        }
+
+        return {
+          id: transaction.id,
+          category: resolvedTopCategory.categoryId,
+        };
       })
       .filter(
         (
@@ -867,8 +1024,8 @@ class AccountInternal extends PureComponent<
       );
 
     if (autoCategoryUpdates.length > 0) {
-      // Auto-apply the highest-confidence category for uncategorized rows so
-      // Actual's native uncategorized counter matches the AI-assisted table.
+      // Auto-apply high-confidence suggestions so Actual's native category
+      // column matches the AI-assisted table after manual edits/imports.
       await send('transactions-batch-update', {
         updated: autoCategoryUpdates,
       });

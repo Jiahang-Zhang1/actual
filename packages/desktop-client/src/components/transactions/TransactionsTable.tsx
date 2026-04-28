@@ -1661,7 +1661,56 @@ const Transaction = memo(function Transaction({
   // selected; the top prediction itself is a suggestion, not a second category.
   const selectedMlCategoryId = userSelectedMlCategoryId || categoryId || null;
   const effectiveCategoryId =
-    userSelectedMlCategoryId || categoryId || topPredictedCategoryId || null;
+    userSelectedMlCategoryId || topPredictedCategoryId || categoryId || null;
+  const lastAutoAppliedMlCategoryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const topCategory = mlSuggestion?.topCategories[0];
+    if (
+      isPreview ||
+      !onApplyMlSuggestion ||
+      !topCategory ||
+      !topPredictedCategoryId ||
+      isTemporaryId(originalTransaction.id)
+    ) {
+      return;
+    }
+
+    const isAlreadyApplied = isMlCategoryMatch({
+      categoryGroups,
+      selectedCategoryId: categoryId,
+      suggestion: mlSuggestion,
+      item: topCategory,
+    });
+    if (isAlreadyApplied) {
+      return;
+    }
+
+    const autoApplyKey = [
+      originalTransaction.id,
+      topPredictedCategoryId,
+      topCategory.score.toFixed(4),
+    ].join('|');
+    if (lastAutoAppliedMlCategoryRef.current === autoApplyKey) {
+      return;
+    }
+
+    lastAutoAppliedMlCategoryRef.current = autoApplyKey;
+    void Promise.resolve(
+      onApplyMlSuggestion(originalTransaction, topPredictedCategoryId),
+    ).catch(() => {
+      lastAutoAppliedMlCategoryRef.current = null;
+    });
+  }, [
+    categoryGroups,
+    categoryId,
+    isPreview,
+    mlSuggestion,
+    onApplyMlSuggestion,
+    originalTransaction,
+    topPredictedCategoryId,
+  ]);
+
   const formatCategoryCellValue = (value: string | null | undefined) =>
     value
       ? getCategoryDisplayName(categoryGroups, value, mlSuggestion)
