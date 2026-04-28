@@ -293,38 +293,53 @@ const ML_MERCHANT_CATEGORY_HINTS: Array<{
   keywords: string[];
 }> = [
   {
-    category: 'Food & Dining',
-    keywords: [
-      'cafe',
-      'chipotle',
-      'coffee',
-      'doordash',
-      'dunkin',
-      'grubhub',
-      'kfc',
-      'mcdonald',
-      'pizza',
-      'restaurant',
-      'starbucks',
-      'subway',
-      'taco bell',
-      'ubereats',
-    ],
-  },
-  {
     category: 'Transportation',
     keywords: [
       'bp',
+      'bus fare',
+      'commute',
       'exxon',
       'fuel',
       'gas station',
       'lyft',
       'metro',
+      'mnr',
+      'mta',
+      'nj transit',
+      'omny',
+      'path train',
+      'pos train ticket',
+      'rail',
       'rideshare',
       'shell',
+      'subway fare',
       'taxi',
+      'train ticket',
       'transit',
       'uber',
+    ],
+  },
+  {
+    category: 'Food & Dining',
+    keywords: [
+      'cafe',
+      'chipotle',
+      'coffee',
+      'dinner',
+      'doordash',
+      'dunkin',
+      'food with friends',
+      'grubhub',
+      'kfc',
+      'lunch',
+      'mcdonald',
+      'pizza',
+      'restaurant',
+      'shakeshack',
+      'starbucks',
+      'subway #',
+      'taco bell',
+      'ubereats',
     ],
   },
   {
@@ -580,8 +595,11 @@ class AccountInternal extends PureComponent<
     }
   };
 
-  getTransactionMlTextSignal = (transaction: TransactionEntity) => {
-    const payeeName = this.props.payees.find(
+  getTransactionMlTextSignal = (
+    transaction: TransactionEntity,
+    payees = this.props.payees,
+  ) => {
+    const payeeName = payees.find(
       payee => payee.id === transaction.payee,
     )?.name;
     return [payeeName, transaction.imported_payee, transaction.notes]
@@ -589,19 +607,26 @@ class AccountInternal extends PureComponent<
       .join(' ');
   };
 
-  getMlPredictionInputSignature = (transactions: TransactionEntity[]) => {
+  getMlPredictionInputSignature = (
+    transactions: TransactionEntity[],
+    payees = this.props.payees,
+  ) => {
     return transactions
-      .map(transaction =>
-        [
+      .map(transaction => {
+        const payeeName = payees.find(
+          payee => payee.id === transaction.payee,
+        )?.name;
+        return [
           transaction.id,
           transaction.payee ?? '',
+          payeeName ?? '',
           transaction.imported_payee ?? '',
           transaction.notes ?? '',
           transaction.amount ?? '',
           transaction.date ?? '',
           transaction.account ?? '',
-        ].join('|'),
-      )
+        ].join('|');
+      })
       .join('\n');
   };
 
@@ -823,6 +848,7 @@ class AccountInternal extends PureComponent<
 
   getPrediction = async (
     transactionId: string,
+    transaction?: TransactionEntity,
   ): Promise<MlPrediction | null> => {
     try {
       const result: unknown = await send(
@@ -831,6 +857,7 @@ class AccountInternal extends PureComponent<
       );
       return this.normalizeMlPredictionCategories(
         this.isMlPrediction(result) ? result : null,
+        transaction ? this.getTransactionMlTextSignal(transaction) : undefined,
       );
     } catch (e) {
       console.error('Failed to get ML prediction', e);
@@ -951,7 +978,7 @@ class AccountInternal extends PureComponent<
       candidates.map(async transaction => {
         return [
           transaction.id,
-          await this.getPrediction(transaction.id),
+          await this.getPrediction(transaction.id, transaction),
         ] as const;
       }),
     );
@@ -1236,9 +1263,11 @@ class AccountInternal extends PureComponent<
     const currIds = this.state.transactions.map(t => t.id).join(',');
     const prevMlInputSignature = this.getMlPredictionInputSignature(
       prevState.transactions,
+      prevProps.payees,
     );
     const currMlInputSignature = this.getMlPredictionInputSignature(
       this.state.transactions,
+      this.props.payees,
     );
 
     if (prevIds !== currIds || prevMlInputSignature !== currMlInputSignature) {
