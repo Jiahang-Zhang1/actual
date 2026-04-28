@@ -1,26 +1,9 @@
-import argparse
-import json
-import os
-import random
-import statistics
-import threading
-import time
-from concurrent.futures import ThreadPoolExecutor
-from pathlib import Path
-
 import requests
+import random
+import time
+import os
 
-
-DESCRIPTIONS = [
-    "STARBUCKS STORE 1458 NEW YORK NY",
-    "UBER TRIP SAN FRANCISCO CA",
-    "WHOLE FOODS MARKET BROOKLYN NY",
-    "AMAZON MKTPLACE PMTS",
-    "NETFLIX.COM",
-    "SHELL OIL 5744332",
-    "DELTA AIR LINES ATLANTA",
-    "CVS PHARMACY 01452",
-    # Latest data-team merchant examples from origin/master.
+descriptions = [
     "CHIPOTLE MEXICAN GRILL",
     "SHAKE SHACK",
     "PANERA BREAD",
@@ -35,282 +18,34 @@ DESCRIPTIONS = [
     "VERIZON WIRELESS",
     "CONSOLIDATED EDISON",
     "SPOTIFY USA",
+    "CVS PHARMACY 8823",
     "WALGREENS 6712",
-    "NYC HEALTH",
+    "NYC HEALTH"
 ]
-COUNTRIES = ["US", "GB", "AU"]
-CURRENCIES = ["USD", "GBP", "AUD"]
-ACCOUNTS = ["checking-account", "credit-card", "savings-account"]
-NOTES = [
-    "coffee before class",
-    "monthly internet bill",
-    "ride home",
-    "manual entry from user",
-    "pharmacy purchase",
-]
+countries = ['US', 'UK', 'AUSTRALIA']
+currencies = ['USD', 'GBP', 'AUD']
 
+SERVING_URL = os.getenv('SERVING_URL', 'http://129.114.26.122:30090/predict')
+REQUESTS_PER_SECOND = int(os.getenv('REQUESTS_PER_SECOND', '1'))
+DURATION_SECONDS = int(os.getenv('DURATION_SECONDS', '604800'))
 
-def random_amount() -> float:
-    sign = 1 if random.random() < 0.12 else -1
-    return sign * round(random.uniform(3, 250), 2)
+print(f"Starting data generator: {REQUESTS_PER_SECOND} req/s for {DURATION_SECONDS}s")
+print(f"Serving URL: {SERVING_URL}")
 
+start_time = time.time()
+i = 0
 
-def full_payload() -> dict:
-    description = random.choice(DESCRIPTIONS)
-    return {
-        "transaction_description": description,
-        "country": random.choice(COUNTRIES),
-        "currency": random.choice(CURRENCIES),
-        "merchant_text": description,
-        "amount": random_amount(),
-        "transaction_date": time.strftime("%Y-%m-%d"),
+while time.time() - start_time < DURATION_SECONDS:
+    payload = {
+        "transaction_description": random.choice(descriptions),
+        "country": random.choice(countries),
+        "currency": random.choice(currencies)
     }
-
-
-SPARSE_VARIANTS = [
-    "description_only",
-    "notes_only",
-    "amount_only",
-    "amount_only_positive_expense",
-    "currency_only",
-    "account_amount_only",
-    "account_positive_expense",
-    "payee_no_notes",
-    "payee_positive_expense",
-    "payee_amount_conflict",
-    "payee_notes_conflict",
-    "income_text_positive",
-    "camel_case_actual_payload",
-    "invalid_amount_string",
-    "empty_payload",
-]
-
-
-def sparse_payload(variant: str | None = None) -> dict:
-    variant = variant or random.choice(SPARSE_VARIANTS)
-    if variant == "description_only":
-        return {"transaction_description": random.choice(DESCRIPTIONS)}
-    if variant == "notes_only":
-        return {"notes": random.choice(NOTES)}
-    if variant == "amount_only":
-        return {"amount": random_amount()}
-    if variant == "amount_only_positive_expense":
-        return {"amount": round(random.uniform(3, 80), 2), "currency": random.choice(CURRENCIES)}
-    if variant == "currency_only":
-        return {"currency": random.choice(CURRENCIES)}
-    if variant == "account_amount_only":
-        return {
-            "account_id": random.choice(ACCOUNTS),
-            "amount": random_amount(),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "account_positive_expense":
-        return {
-            "account_id": random.choice(["credit-card", "transport-card", "shopping-card"]),
-            "amount": round(random.uniform(10, 120), 2),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "payee_no_notes":
-        return {
-            "transaction_description": random.choice(DESCRIPTIONS),
-            "notes": "",
-            "amount": random_amount(),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "payee_positive_expense":
-        return {
-            "transaction_description": random.choice(["LYFT RIDE", "UBER TRIP", "STARBUCKS STORE 1458", "TARGET STORE 0234"]),
-            "notes": "",
-            "amount": round(random.uniform(5, 95), 2),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "payee_amount_conflict":
-        return {
-            "transaction_description": random.choice(
-                ["PAYROLL DIRECT DEPOSIT", "STARBUCKS STORE 1458", "LYFT RIDE"],
-            ),
-            "notes": "",
-            "amount": random.choice([-88.0, 2400.0, 0.0]),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "payee_notes_conflict":
-        return {
-            "transaction_description": "LYFT RIDE",
-            "notes": "payroll deposit",
-            "amount": -18.2,
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "income_text_positive":
-        return {
-            "transaction_description": random.choice(["PAYROLL DIRECT DEPOSIT", "SALARY PAYCHECK", "EMPLOYER PAYMENT"]),
-            "notes": "",
-            "amount": round(random.uniform(800, 4500), 2),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "camel_case_actual_payload":
-        return {
-            "transactionDescription": random.choice(DESCRIPTIONS),
-            "transactionAmount": "$1,234.56",
-            "accountId": random.choice(ACCOUNTS),
-            "currency": random.choice(CURRENCIES),
-        }
-    if variant == "invalid_amount_string":
-        return {
-            "transaction_description": random.choice(DESCRIPTIONS),
-            "amount": "not-a-number",
-            "notes": "",
-        }
-    return {}
-
-
-def build_payload(sparse_rate: float = 0.25) -> dict:
-    if random.random() < sparse_rate:
-        return sparse_payload()
-    return full_payload()
-
-
-def percentile(values, q):
-    if not values:
-        return 0.0
-    ordered = sorted(values)
-    idx = int((len(ordered) - 1) * q)
-    return ordered[idx]
-
-
-def worker(
-    base_url: str,
-    interval_seconds: float,
-    timeout: float,
-    stop_at: float,
-    metrics: dict,
-    lock: threading.Lock,
-    sparse_rate: float,
-    synthetic_header: bool,
-):
-    session = requests.Session()
-    headers = {"X-Actual-Synthetic-Traffic": "true"} if synthetic_header else {}
-    while time.time() < stop_at:
-        payload = build_payload(sparse_rate=sparse_rate)
-        started = time.perf_counter()
-        ok = False
-        try:
-            response = session.post(
-                base_url,
-                json=payload,
-                headers=headers,
-                timeout=timeout,
-            )
-            ok = response.ok
-            response.raise_for_status()
-            body = response.json()
-        except Exception as exc:  # pragma: no cover - request failure path
-            with lock:
-                metrics["errors"] += 1
-                metrics["events"].append({"payload": payload, "error": str(exc), "ok": False})
-        else:
-            latency = time.perf_counter() - started
-            with lock:
-                metrics["latencies"].append(latency)
-                metrics["success"] += 1
-                metrics["events"].append(
-                    {
-                        "payload": payload,
-                        "ok": ok,
-                        "latency_seconds": latency,
-                        "predicted_category_id": body.get(
-                            "predicted_category_id",
-                        ),
-                        "confidence": body.get("confidence"),
-                    },
-                )
-        time.sleep(interval_seconds)
-
-
-def main():
-    parser = argparse.ArgumentParser(
-        description="Generate emulated production traffic for the Actual ML service.",
-    )
-    parser.add_argument(
-        "--url",
-        default=os.environ.get(
-            "SERVING_URL",
-            os.environ.get(
-                "PRODUCTION_PREDICT_URL",
-                "http://129.114.26.122:30090/predict",
-            ),
-        ),
-    )
-    parser.add_argument("--duration-seconds", type=int, default=60)
-    parser.add_argument(
-        "--rps",
-        type=float,
-        default=float(os.environ.get("REQUESTS_PER_SECOND", "2")),
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=int(os.environ.get("WORKERS", "1")),
-    )
-    parser.add_argument("--timeout", type=float, default=3.0)
-    parser.add_argument("--sparse-rate", type=float, default=0.25)
-    parser.add_argument(
-        "--synthetic-header",
-        action="store_true",
-        help=(
-            "Mark requests as synthetic so serving excludes them from "
-            "live-user monitor summaries."
-        ),
-    )
-    parser.add_argument("--seed", type=int, help="Optional random seed for reproducible traffic.")
-    parser.add_argument("--output-json", help="Optional path to save the emitted request log.")
-    args = parser.parse_args()
-
-    if args.seed is not None:
-        random.seed(args.seed)
-
-    interval_seconds = max(0.01, args.workers / max(args.rps, 0.1))
-    stop_at = time.time() + args.duration_seconds
-    metrics = {"success": 0, "errors": 0, "latencies": [], "events": []}
-    lock = threading.Lock()
-
-    with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        for _ in range(args.workers):
-            executor.submit(
-                worker,
-                args.url,
-                interval_seconds,
-                args.timeout,
-                stop_at,
-                metrics,
-                lock,
-                args.sparse_rate,
-                args.synthetic_header,
-            )
-
-    summary = {
-        "url": args.url,
-        "duration_seconds": args.duration_seconds,
-        "workers": args.workers,
-        "requested_rps": args.rps,
-        "sparse_rate": args.sparse_rate,
-        "synthetic_header": args.synthetic_header,
-        "success": metrics["success"],
-        "errors": metrics["errors"],
-        "p50_latency_ms": round(percentile(metrics["latencies"], 0.50) * 1000, 2),
-        "p95_latency_ms": round(percentile(metrics["latencies"], 0.95) * 1000, 2),
-        "avg_latency_ms": round(statistics.mean(metrics["latencies"]) * 1000, 2)
-        if metrics["latencies"]
-        else 0.0,
-    }
-    print(json.dumps(summary, indent=2))
-
-    if args.output_json:
-        output_path = Path(args.output_json)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(
-            json.dumps({"summary": summary, "events": metrics["events"]}, indent=2),
-        )
-
-
-if __name__ == "__main__":
-    main()
+    print(f"Request {i+1}: sending -> {payload}")
+    try:
+        response = requests.post(SERVING_URL, json=payload, timeout=5)
+        print(f"Response: {response.json()}")
+    except Exception as e:
+        print(f"Error: {e}")
+    i += 1
+    time.sleep(1.0 / REQUESTS_PER_SECOND)
