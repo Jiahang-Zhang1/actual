@@ -25,7 +25,7 @@ descriptions = [
 countries = ['US', 'UK', 'AUSTRALIA']
 currencies = ['USD', 'GBP', 'AUD']
 
-SERVING_URL = os.getenv('SERVING_URL', 'http://129.114.26.122:30090/predict')
+SERVING_URL = os.getenv('SERVING_URL', 'http://129.114.25.225:30090/predict')
 REQUESTS_PER_SECOND = int(os.getenv('REQUESTS_PER_SECOND', '1'))
 DURATION_SECONDS = int(os.getenv('DURATION_SECONDS', '604800'))
 
